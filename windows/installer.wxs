@@ -1,0 +1,112 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product Name='Avian'
+    	     Manufacturer='Matt Pharr'
+	     Id='*'
+	     UpgradeCode='A10E3C66-BA55-406A-B4E2-586D7108D622'
+	     Language='1033'
+	     Codepage='1252'
+	     Version='0.0.1'
+	     >
+    <Package Id='*'
+    	     Keywords='Installer'
+	     Description="Avian Installer"
+	     Manufacturer='Matt Pharr'
+	     InstallerVersion='100'
+	     Languages='1033'
+	     Compressed='yes'
+	     SummaryCodepage='1252'
+	     />
+
+    <MajorUpgrade DowngradeErrorMessage="A later version of Avian is already installed. Setup will now exit." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="Avian">
+          <Component Id="AvianExe" Guid='A10E3C66-BA55-406A-B4E2-586D7108D622'>
+            <File KeyPath="yes" Name="Avian.exe" Source="Avian.exe"></File>
+          </Component>
+          <Component Id="SDLDLL" Guid='85535501-4016-47c4-9466-846df4cf49a5'>
+            <File KeyPath="yes" Source="windows/SDL2.dll"></File>
+          </Component>
+          <Component Id="gccseh" Guid='68f22a6b-1710-4987-820c-b5cbad791dbe'>
+            <File KeyPath="yes" Source="windows/libgcc_s_seh-1.dll"></File>
+          </Component>
+          <Component Id="libstdcpp" Guid='a7080cc5-8ddf-45b9-bf09-466652cc8b06'>
+            <File KeyPath="yes" Source="windows/libstdc++-6.dll"></File>
+          </Component>
+        </Directory>
+
+	<Directory Id="ProgramMenuFolder">
+	  <Directory Id="ApplicationProgramsFolder" Name="Avian"/>
+	</Directory>
+
+	<Directory Id="DesktopFolder" Name="Desktop">
+          <Component Id="ApplicationShortcutDesktop" Guid="*">
+            <Shortcut Id="ApplicationDesktopShortcut"
+                      Name="Avian ATC"
+                      Description="Avian VATSIM Environment"
+                      Target="[#Avian.exe]"
+                      WorkingDirectory="INSTALLFOLDER"/>
+            <RemoveFolder Id="DesktopFolder" On="uninstall"/>
+            <RegistryValue
+                Root="HKCU"
+                Key="Software\Matt Pharr\Avian"
+                Name="installed"
+                Type="integer"
+                Value="1"
+                KeyPath="yes"/>
+          </Component>
+	</Directory>
+
+      </Directory>
+    </Directory>
+
+    <UI Id="UserInterface">
+      <Property Id="WIXUI_INSTALLDIR" Value="TARGETDIR" />
+      <Property Id="WixUI_Mode" Value="Custom" />
+
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="9" Bold="yes" />
+      <TextStyle Id="WixUI_Font_Title"  FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="UserExit" />
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="EndDialog" Value="Return" Order="2"></Publish>
+
+    </UI>
+    <UIRef Id="WixUI_Common" />
+
+    <WixVariable Id="WixUIDialogBmp" Value="windows\dialog.bmp" />
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid='93fae481-57c0-499a-84c2-517067428f13'>
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="Avian"
+                  Description="VATSIM Environment"
+                  Target="[#Avian.exe]"
+                  WorkingDirectory="INSTALLFOLDER"/>
+        <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+        <RegistryValue Root="HKCU" Key="Software\Matt Pharr\Avian" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MyFeature">
+      <ComponentRef Id="AvianExe" />
+      <ComponentRef Id="SDLDLL" />
+      <ComponentRef Id="gccseh" />
+      <ComponentRef Id="libstdcpp" />
+      <ComponentRef Id="ApplicationShortcut" />
+      <ComponentRef Id="ApplicationShortcutDesktop" />
+    </Feature>
+  </Product>
+</Wix>

@@ -1,0 +1,122 @@
+name: build-osx
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-11 ]
+
+    name: Build ${{ matrix.os }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v3
+
+    - name: Setup go
+      uses: actions/setup-go@v3
+      with:
+        go-version-file: go.mod
+        cache: true
+        cache-dependency-path: go.sum
+
+    - name: Check go install
+      run: go version
+
+    - name: Install Mac dependencies
+      run: brew install sdl2 pkg-config
+    
+    - name: Build universal binary
+      run: |
+        git describe --tags --abbrev=8 --dirty --always --long > resources/version.txt
+        CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -tags static -o avian_amd64 .
+        CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags static -o avian_arm64 .
+        lipo -create -output avian avian_amd64 avian_arm64
+
+    - name: Run tests
+      run:
+        go test -v
+
+    - name: Create icons
+      run: |
+        mkdir -p icon.iconset
+        cp icons/tower-rounded-inset-16x16.png icon.iconset/icon_16x16.png
+        cp icons/tower-rounded-inset-32x32.png icon.iconset/icon_16x16@2.png
+        cp icons/tower-rounded-inset-32x32.png icon.iconset/icon_32x32.png
+        cp icons/tower-rounded-inset-64x64.png icon.iconset/icon_32x32@2.png
+        cp icons/tower-rounded-inset-64x64.png icon.iconset/icon_64x64.png
+        cp icons/tower-rounded-inset-128x128.png icon.iconset/icon_64x64@2.png
+        cp icons/tower-rounded-inset-128x128.png icon.iconset/icon_128x128.png
+        cp icons/tower-rounded-inset-256x256.png icon.iconset/icon_128x128@2.png
+        cp icons/tower-rounded-inset-256x256.png icon.iconset/icon_256x256.png
+        cp icons/tower-rounded-inset-512x512.png icon.iconset/icon_256x256@2.png
+        cp icons/tower-rounded-inset-512x512.png icon.iconset/icon_512x512.png
+        cp icons/tower-rounded-inset-1024x1024.png icon.iconset/icon_512x512@2.png
+        iconutil -c icns icon.iconset
+
+    - name: Create Avian.app
+      run: |
+        mkdir -p Avian.app/Contents/MacOS
+        cp osx/Info.plist Avian.App/Contents/
+        mkdir Avian.app/Contents/Resources
+        cp icon.icns Avian.app/Contents/Resources
+        cp avian Avian.app/Contents/MacOS/
+
+    - name: Set up keychain for signing binary
+      env:
+        APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+        APPLE_DEVELOPER_ID_CERT_FILE: ${{ secrets.APPLE_DEVELOPER_ID_CERT_FILE }}
+      # https://medium.com/anchore-engineering/developers-need-to-handle-macos-binary-signing-how-we-automated-the-solution-part-2-ad1e08caff0f
+      run: |
+        EPHEMERAL_KEYCHAIN="ci-ephemeral-keychain"
+        EPHEMERAL_KEYCHAIN_PASSWORD="$(openssl rand -base64 100)"
+        security create-keychain -p "${EPHEMERAL_KEYCHAIN_PASSWORD}" "${EPHEMERAL_KEYCHAIN}"
+        EPHEMERAL_KEYCHAIN_FULL_PATH="$HOME/Library/Keychains/${EPHEMERAL_KEYCHAIN}-db"
+        echo ${APPLE_DEVELOPER_ID_CERT_FILE} | base64 -d > cert.p12
+        security import ./cert.p12 -k "${EPHEMERAL_KEYCHAIN_FULL_PATH}" -P ${APPLE_DEVELOPER_ID_CERT_PASSWORD} -T "$(command -v codesign)"
+        security -q set-key-partition-list -S "apple-tool:,apple:" -s -k "${EPHEMERAL_KEYCHAIN_PASSWORD}" "${EPHEMERAL_KEYCHAIN_FULL_PATH}"
+        security default-keychain -d "user" -s "${EPHEMERAL_KEYCHAIN_FULL_PATH}"
+
+    - name: Sign Avian.app
+      env:
+        APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+      run: |
+        codesign -s "${APPLE_DEVELOPER_ID_APPLICATION}" -f -v --timestamp --options runtime Avian.app
+
+    - name: Notarize Avian.app
+      env:
+        APPLE_CODESIGN_PASSWORD: ${{ secrets.APPLE_CODESIGN_PASSWORD }}
+        APPLE_CODESIGN_ID: ${{ secrets.APPLE_CODESIGN_ID }}
+      run:
+        zsh osx/notarize-app.sh
+
+    - name: Create zip file for notarized app
+      run:
+        zip -rv Avian-osx.zip Avian.app
+
+    - name: Save zip file as build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Avian-osx.zip
+        path: Avian-osx.zip
+
+    - name: Rename zip for release (maybe)
+      if: startsWith(github.ref, 'refs/tags/')
+      run:
+        mv Avian-osx.zip 'Avian-${{ github.ref_name }}-osx.zip'
+
+    - name: Upload release (maybe)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: 'Avian-${{ github.ref_name }}-osx.zip'
