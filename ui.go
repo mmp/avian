@@ -66,7 +66,7 @@ func imguiInit() *imgui.Context {
 }
 
 func uiInit(renderer Renderer) {
-	ui.font = GetFont(FontIdentifier{Name: "Roboto Regular", Size: 16})
+	ui.font = GetFont(FontIdentifier{Name: "Roboto Regular", Size: globalConfig.UIFontSize})
 	ui.aboutFont = GetFont(FontIdentifier{Name: "Roboto Regular", Size: 18})
 	ui.fixedFont = GetFont(FontIdentifier{Name: "Source Code Pro Regular", Size: 16})
 
@@ -190,7 +190,7 @@ func drawUI(cs *ColorScheme, platform Platform) {
 			if imgui.MenuItem("Files...") {
 				ui.showFilesEditor = true
 			}
-			if imgui.MenuItem("Colors...") {
+			if imgui.MenuItem("Appearance...") {
 				ui.showColorEditor = true
 			}
 			if imgui.MenuItem("Sounds...") {
@@ -281,7 +281,24 @@ func drawActiveSettingsWindows() {
 	}
 
 	if ui.showColorEditor {
-		imgui.BeginV("Color Settings", &ui.showColorEditor, imgui.WindowFlagsAlwaysAutoResize)
+		imgui.BeginV("Appearance", &ui.showColorEditor, imgui.WindowFlagsAlwaysAutoResize)
+
+		if imgui.BeginComboV("UI Font Size", fmt.Sprintf("%d", globalConfig.UIFontSize), imgui.ComboFlagsHeightLarge) {
+			sizes := make(map[int]interface{})
+			for fontid := range fonts {
+				if fontid.Name == "Roboto Regular" {
+					sizes[fontid.Size] = nil
+				}
+			}
+			for _, size := range SortedMapKeys(sizes) {
+				if imgui.SelectableV(fmt.Sprintf("%d", size), size == globalConfig.UIFontSize, 0, imgui.Vec2{}) {
+					globalConfig.UIFontSize = size
+					ui.font = GetFont(FontIdentifier{Name: "Roboto Regular", Size: globalConfig.UIFontSize})
+				}
+			}
+			imgui.EndCombo()
+		}
+
 		showColorEditor()
 		imgui.End()
 	}

@@ -31,6 +31,7 @@ type GlobalConfig struct {
 	InitialWindowPosition [2]int
 	ImGuiSettings         string
 	AudioSettings         AudioSettings
+	UIFontSize            int
 
 	aliases map[string]string
 
@@ -372,6 +373,10 @@ func LoadOrMakeDefaultConfig() {
 	globalConfig = &GlobalConfig{}
 	if err := d.Decode(globalConfig); err != nil {
 		ShowErrorDialog("Configuration file is corrupt: %v", err)
+	}
+
+	if globalConfig.UIFontSize == 0 {
+		globalConfig.UIFontSize = 16
 	}
 
 	globalConfig.LoadAliasesFile()
