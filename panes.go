@@ -555,6 +555,21 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		return " \u200a\u200a\u200a"
 	}
 
+	rules := func(ac *Aircraft) string {
+		switch ac.FlightPlan.Rules {
+		case IFR:
+			return "I"
+		case VFR:
+			return "V"
+		case DVFR:
+			return "D"
+		case SVFR:
+			return "S"
+		default:
+			return ac.FlightPlan.Rules.String()
+		}
+	}
+
 	if a.ShowDepartures && len(departures) > 0 {
 		str.WriteString("Departures:\n")
 		sort.Slice(departures, func(i, j int) bool {
@@ -568,7 +583,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			}
 			experience := experienceIcon(ac)
 			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %3s %5d %12s", experience, ac.Callsign,
-				ac.FlightPlan.Rules, ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
+				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
 				ac.Scratchpad, ac.FlightPlan.Altitude, route))
 
 			// Make sure the squawk is good
@@ -586,33 +601,40 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		str.WriteString("\n")
 	}
 
-	writeWakeTurbulence := func(leader, follower *Aircraft) {
-		if leader == nil || follower == nil {
-			str.WriteString("       ")
-			return
-		}
+	/*
+		writeWakeTurbulence := func(leader, follower *Aircraft) {
+			if leader == nil || follower == nil {
+				str.WriteString("       ")
+				return
+			}
 
-		if req, err := RECATAircraftDistance(leader, follower); err != nil {
-			str.WriteString("       ")
-			return
-		} else {
-			if req == 0 { // minimum radar separation
-				req = 3
-			}
-			d := nmdistance2ll(leader.Position(), follower.Position())
-			if d > 9.9 {
-				d = 9.9
-			}
-			if d < float32(req) {
-				flush()
-				style.Color = cs.TextHighlight
-				str.WriteString(fmt.Sprintf("%3.1f/%dnm", d, req))
-				flush()
+			if req, err := RECATAircraftDistance(leader, follower); err != nil {
+				str.WriteString("       ")
+				return
 			} else {
-				str.WriteString(fmt.Sprintf("%3.1f/%dnm", d, req))
+				if req == 0 { // minimum radar separation
+					req = 3
+				}
+				d := nmdistance2ll(leader.Position(), follower.Position())
+				if d > 9.9 {
+					d = 9.9
+				}
+				if d < float32(req) {
+					flush()
+					style.Color = cs.TextHighlight
+					str.WriteString(fmt.Sprintf("%3.1f/%dnm", d, req))
+					flush()
+				} else {
+					str.WriteString(fmt.Sprintf("%3.1f/%dnm", d, req))
+				}
 			}
 		}
-	}
+	*/
+
+	// Filter out ones >100 nm from the airport
+	airborne = FilterSlice(airborne, func(ac *Aircraft) bool {
+		return nmdistance2ll(database.FAA.airports[ac.FlightPlan.DepartureAirport].Location, ac.Position()) < 100
+	})
 
 	if a.ShowDeparted && len(airborne) > 0 {
 		sort.Slice(airborne, func(i, j int) bool {
@@ -624,7 +646,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		})
 
 		str.WriteString("Departed:\n")
-		for i, ac := range airborne {
+		for _, ac := range airborne {
 			route := ac.FlightPlan.Route
 			if len(route) > 10 {
 				route = route[:10]
@@ -642,15 +664,16 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 			experience := experienceIcon(ac)
 			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %3s %s %5d ", experience, ac.Callsign,
-				ac.FlightPlan.Rules, ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
+				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
 				ac.Scratchpad, clearedAlt, alt))
 
-			if i+1 < len(airborne) {
-				writeWakeTurbulence(airborne[i+1], ac)
-			} else {
-				writeWakeTurbulence(nil, ac)
-			}
-
+			/*
+				if i+1 < len(airborne) {
+					writeWakeTurbulence(airborne[i+1], ac)
+				} else {
+					writeWakeTurbulence(nil, ac)
+				}
+			*/
 			str.WriteString(fmt.Sprintf(" %12s\n", route))
 		}
 		str.WriteString("\n")
@@ -659,7 +682,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	arrivals := getDistanceSortedArrivals(a.Airports)
 	if a.ShowArrivals && len(arrivals) > 0 {
 		str.WriteString("Arrivals:\n")
-		for i, arr := range arrivals {
+		for _, arr := range arrivals {
 			ac := arr.aircraft
 			alt := ac.Altitude()
 			alt = (alt + 50) / 100 * 100
@@ -673,14 +696,16 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 			experience := experienceIcon(ac)
 			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %3s %5d  %5d %4dnm ", experience, ac.Callsign,
-				ac.FlightPlan.Rules, ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType, ac.Scratchpad,
+				rules(ac), ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType, ac.Scratchpad,
 				ac.TempAltitude, alt, int(arr.distance)))
 
-			if i > 0 {
-				writeWakeTurbulence(arrivals[i-1].aircraft, arrivals[i].aircraft)
-			} else {
-				writeWakeTurbulence(nil, nil)
-			}
+			/*
+				if i > 0 {
+					writeWakeTurbulence(arrivals[i-1].aircraft, arrivals[i].aircraft)
+				} else {
+					writeWakeTurbulence(nil, nil)
+				}
+			*/
 
 			str.WriteString(fmt.Sprintf(" %4s %s\n", ac.Squawk, star))
 
