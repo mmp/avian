@@ -2486,7 +2486,7 @@ func (tp *TabbedPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	thumbWidth := float32(int(aspect * thumbHeight))
 	highDPIScale := platform.FramebufferSize()[1] / platform.DisplaySize()[1]
 
-	nThumbs := len(tp.Panes) - 1
+	nThumbs := len(tp.Panes)
 	if thumbWidth*float32(nThumbs) > w {
 		thumbWidth = floor(w / float32(nThumbs))
 		// aspect = w / (h - thumbHeight)
@@ -2509,7 +2509,15 @@ func (tp *TabbedPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	// Vertical separator lines
 	for i := 0; i <= nThumbs; i++ {
 		x := x0 + float32(i)*thumbWidth
-		ld.AddLine([2]float32{x, h}, [2]float32{x, h - thumbHeight}, ctx.cs.UIControl)
+		if i == tp.ActivePane || i-1 == tp.ActivePane {
+			ld.AddLine([2]float32{x, h}, [2]float32{x, h - thumbHeight}, ctx.cs.UIControlActive)
+			if i == tp.ActivePane {
+				ld.AddLine([2]float32{x, h}, [2]float32{x + thumbWidth, h}, ctx.cs.UIControlActive)
+				ld.AddLine([2]float32{x, h - thumbHeight}, [2]float32{x + thumbWidth, h - thumbHeight}, ctx.cs.UIControlActive)
+			}
+		} else {
+			ld.AddLine([2]float32{x, h}, [2]float32{x, h - thumbHeight}, ctx.cs.UIControl)
+		}
 	}
 
 	ctx.SetWindowCoordinateMatrices(cb)
@@ -2518,10 +2526,7 @@ func (tp *TabbedPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 	// Draw the thumbnail contents
 	px0 := x0
-	for i, pane := range tp.Panes {
-		if i == tp.ActivePane {
-			continue
-		}
+	for _, pane := range tp.Panes {
 		paneCtx := *ctx
 		paneCtx.mouse = nil
 		paneCtx.thumbnail = true
@@ -2567,10 +2572,6 @@ func (tp *TabbedPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	// See if a thumbnail was clicked on
 	if ctx.mouse != nil && ctx.mouse.Released[MouseButtonPrimary] && ctx.mouse.Pos[1] >= h-thumbHeight {
 		i := int((ctx.mouse.Pos[0] - x0) / thumbWidth)
-		if i >= tp.ActivePane {
-			// account for the active pane's thumbnail not being drawn
-			i++
-		}
 		if i >= 0 && i < len(tp.Panes) {
 			tp.ActivePane = i
 		}
