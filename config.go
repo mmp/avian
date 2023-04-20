@@ -440,7 +440,9 @@ func parseNotes(text string) *NotesNode {
 func (pc *PositionConfig) Update() {
 	for _, event := range eventStream.Get(pc.eventsId) {
 		if sel, ok := event.(*SelectedAircraftEvent); ok {
-			sel.ac.HoursOnNetwork(false) // kick off the fetch
+			if sel.ac != nil {
+				sel.ac.HoursOnNetwork(false) // kick off the fetch
+			}
 			pc.selectedAircraft = sel.ac
 		}
 	}
