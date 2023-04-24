@@ -1846,6 +1846,7 @@ type ImageViewPane struct {
 	cancel         context.CancelFunc
 	loadChan       chan LoadedImage
 
+	expanded        map[string]interface{}
 	loadedImages    map[string]*ImageViewImage
 	showImageList   bool
 	scrollBar       *ScrollBar
@@ -1893,6 +1894,7 @@ func (iv *ImageViewPane) Duplicate(nameAsCopy bool) Pane {
 
 func (iv *ImageViewPane) Activate() {
 	iv.scrollBar = NewScrollBar(4, false)
+	iv.expanded = make(map[string]interface{})
 	iv.loadImages()
 }
 
@@ -1902,30 +1904,33 @@ func (iv *ImageViewPane) loadImages() {
 	iv.loadChan = make(chan LoadedImage, 64)
 	iv.nImagesLoading = 0
 
-	de, err := os.ReadDir(iv.Directory)
-	if err != nil {
-		lg.Errorf("%s: %v", iv.Directory, err)
-	}
+	// Load the selected image first, for responsiveness...
+	iv.nImagesLoading++
+	loadImage(iv.ctx, path.Join(iv.Directory, iv.SelectedImage), iv.InvertImages, iv.loadChan)
 
-	// Load the selected one first
-	if FindIf(de, func(de os.DirEntry) bool { return de.Name() == iv.SelectedImage }) != -1 {
-		iv.nImagesLoading++
-		loadImage(iv.ctx, path.Join(iv.Directory, iv.SelectedImage), iv.InvertImages, iv.loadChan)
-	}
+	// Now kick off loading the rest asynchronously
+	err := filepath.WalkDir(iv.Directory, func(filename string, entry os.DirEntry, err error) error {
+		lg.Errorf("%s | %+v | %+v", filename, entry, err)
+		// TODO: figure out how to handle this... It's likely a permissions issue or the like.
+		if err != nil {
+			return err
+		}
 
-	for _, entry := range de {
 		ext := filepath.Ext(strings.ToUpper(entry.Name()))
 		if entry.IsDir() || (ext != ".PNG" && ext != ".JPG" && ext != ".JPEG") {
-			continue
+			return nil
 		}
 		if entry.Name() == iv.SelectedImage {
 			// Already loaded it
-			continue
+			return nil
 		}
 
-		filename := path.Join(iv.Directory, entry.Name())
 		iv.nImagesLoading++
 		go loadImage(iv.ctx, filename, iv.InvertImages, iv.loadChan)
+		return nil
+	})
+	if err != nil {
+		lg.Errorf("%s: %v", iv.Directory, err)
 	}
 }
 
@@ -2074,8 +2079,14 @@ func (iv *ImageViewPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			aspect := float32(im.Pyramid[0].Bounds().Max.X-im.Pyramid[0].Bounds().Min.X) /
 				float32(im.Pyramid[0].Bounds().Max.Y-im.Pyramid[0].Bounds().Min.Y)
 
-			iv.loadedImages[im.Name] = &ImageViewImage{
-				Name:        im.Name,
+			// strip the image directory name
+			name, err := filepath.Rel(iv.Directory, im.Name)
+			if err != nil {
+				lg.Errorf("%s: %v", im.Name, err)
+			}
+
+			iv.loadedImages[name] = &ImageViewImage{
+				Name:        name,
 				TexId:       texid,
 				AspectRatio: aspect,
 			}
@@ -2123,51 +2134,89 @@ func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
 	defer ReturnTextDrawBuilder(td)
 	style := TextStyle{Font: font, Color: ctx.cs.Text}
 
-	var previousLine []string
-	matchPrevious := func(s string) string {
-		cur := strings.Fields(s)
-		var result []string
-		spaces := 0
-		for i, str := range cur {
-			if i == len(previousLine) || str != previousLine[i] {
-				result = cur[i:]
-				break
-			} else {
-				spaces += 1 + len(str)
-				if i == 0 {
-					spaces++
-				}
-			}
+	shownDirs := make(map[string]interface{})
+
+	selected := func() bool {
+		// hovered?
+		if !(ctx.mouse != nil && ctx.mouse.Pos[1] < pText[1] && ctx.mouse.Pos[1] >= pText[1]-float32(lineHeight)) {
+			return false
 		}
-		previousLine = cur
-		return fmt.Sprintf("%*c", spaces, ' ') + strings.Join(result, " ")
+
+		// Draw the selection box.
+		rect := LinesDrawBuilder{}
+		width := ctx.paneExtent.Width()
+		rect.AddPolyline([2]float32{indent / 2, float32(pText[1])},
+			[][2]float32{[2]float32{0, 0},
+				[2]float32{width - indent, 0},
+				[2]float32{width - indent, float32(-lineHeight)},
+				[2]float32{0, float32(-lineHeight)}})
+		cb.SetRGB(ctx.cs.Text)
+		rect.GenerateCommands(cb)
+
+		return ctx.mouse.Released[0]
 	}
 
 	for _, name := range SortedMapKeys(iv.loadedImages) {
-		hovered := func() bool {
-			return ctx.mouse != nil && ctx.mouse.Pos[1] < pText[1] && ctx.mouse.Pos[1] >= pText[1]-float32(lineHeight)
-		}
-		if hovered() {
-			// Draw the selection box.
-			rect := LinesDrawBuilder{}
-			width := ctx.paneExtent.Width()
-			rect.AddPolyline([2]float32{indent / 2, float32(pText[1])},
-				[][2]float32{[2]float32{0, 0},
-					[2]float32{width - indent, 0},
-					[2]float32{width - indent, float32(-lineHeight)},
-					[2]float32{0, float32(-lineHeight)}})
-			cb.SetRGB(ctx.cs.Text)
-			rect.GenerateCommands(cb)
+		dirs := strings.Split(filepath.Dir(name), "/") // TODO: windows?
+		dir := ""
 
-			if ctx.mouse.Released[0] {
+		offerImage := true
+		atRoot := len(dirs) == 1 && dirs[0] == "."
+		if !atRoot {
+			for i, d := range dirs {
+				dir = path.Join(dir, d)
+				_, expanded := iv.expanded[dir]
+				_, shown := shownDirs[dir]
+
+				offerImage = offerImage && expanded
+
+				if shown {
+					if expanded {
+						continue
+					} else {
+						break
+					}
+				}
+
+				shownDirs[dir] = nil
+
+				var text string
+				if expanded {
+					text = FontAwesomeIconCaretDown + "\u200a" + d
+				} else {
+					text = "\u200a\u200a" + FontAwesomeIconCaretRight + "\u200a\u200a" + d
+				}
+
+				if selected() {
+					if expanded {
+						delete(iv.expanded, dir)
+					} else {
+						iv.expanded[dir] = nil
+					}
+				}
+
+				indent := fmt.Sprintf("%*c", 2*(i+1)-1, ' ')
+				pText = td.AddText(indent+text+"\n", pText, style)
+
+				if !expanded {
+					// Don't show the children
+					break
+				}
+			}
+		}
+		if offerImage {
+			if selected() {
 				iv.SelectedImage = name
 				iv.showImageList = false
 			}
+			indent := fmt.Sprintf("%*c", 2*len(dirs)+1, ' ')
+			if atRoot {
+				indent = " "
+			}
+			pText = td.AddText(indent+filepath.Base(name)+"\n", pText, style)
 		}
-
-		text := matchPrevious(filepath.Base(name))
-		pText = td.AddText(text+"\n", pText, style)
 	}
+
 	td.GenerateCommands(cb)
 }
 
