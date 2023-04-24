@@ -2,7 +2,7 @@
 #*#
 installer.wixobj
 rsrc_windows_*.syso
-osx/icon.iconset/
+icon.iconset/
 Avian.app/
 osx/Avian*.dmg
 osx/avian
