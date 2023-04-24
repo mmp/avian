@@ -1910,7 +1910,6 @@ func (iv *ImageViewPane) loadImages() {
 
 	// Now kick off loading the rest asynchronously
 	err := filepath.WalkDir(iv.Directory, func(filename string, entry os.DirEntry, err error) error {
-		lg.Errorf("%s | %+v | %+v", filename, entry, err)
 		// TODO: figure out how to handle this... It's likely a permissions issue or the like.
 		if err != nil {
 			return err
