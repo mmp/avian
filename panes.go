@@ -2117,6 +2117,11 @@ func (iv *ImageViewPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 }
 
 func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
+	if _, ok := ctx.keyboard.Pressed[KeyEscape]; ok {
+		iv.showImageList = false
+		return
+	}
+
 	font := ui.fixedFont
 	indent := float32(int(font.size / 2)) // left and top spacing
 	lineHeight := font.size
@@ -2132,6 +2137,7 @@ func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
 	td := GetTextDrawBuilder()
 	defer ReturnTextDrawBuilder(td)
 	style := TextStyle{Font: font, Color: ctx.cs.Text}
+	selectedStyle := TextStyle{Font: font, Color: ctx.cs.TextHighlight}
 
 	shownDirs := make(map[string]interface{})
 
@@ -2212,7 +2218,11 @@ func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
 			if atRoot {
 				indent = " "
 			}
-			pText = td.AddText(indent+filepath.Base(name)+"\n", pText, style)
+			if name == iv.SelectedImage {
+				pText = td.AddText(indent+filepath.Base(name)+"\n", pText, selectedStyle)
+			} else {
+				pText = td.AddText(indent+filepath.Base(name)+"\n", pText, style)
+			}
 		}
 	}
 
