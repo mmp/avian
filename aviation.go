@@ -291,6 +291,11 @@ func (ac *Aircraft) HoursOnNetwork(wait bool) float32 {
 				return
 			}
 
+			if len(rsp.Results) == 0 {
+				lg.Errorf("Empty results response from VATSIM connections? %+v", rsp)
+				return
+			}
+
 			var total time.Duration
 			for _, r := range rsp.Results[1:] { // skip the first one, which is the current session...
 				total += time.Time(r.End).Sub(time.Time(r.Start))
