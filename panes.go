@@ -2578,13 +2578,38 @@ func (tp *TabbedPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		thumbHeight = floor(thumbWidth / aspect)
 	}
 
+	// Center the thumbnails horizontally
+	x0 := (w - thumbWidth*float32(nThumbs)) / 2
+	x1 := x0 + thumbWidth*float32(nThumbs)
+
+	// Draw the labels above the panes
+	labelHeight := 2 + ui.fixedFont.size
+	td := GetTextDrawBuilder()
+	defer ReturnTextDrawBuilder(td)
+	style := TextStyle{Font: ui.fixedFont, Color: ctx.cs.Text}
+	for i, pane := range tp.Panes {
+		label := pane.Name()
+		// Find first shortened-if-need-be label that fits the space
+		for len(label) > 0 {
+			textw, _ := ui.fixedFont.BoundText(label, 0)
+			if float32(textw) < thumbWidth {
+				pText := [2]float32{x0 + (float32(i)+0.5)*thumbWidth - float32(textw/2), h - 1}
+				td.AddText(label, pText, style)
+				break
+			}
+			label = label[:len(label)-1]
+		}
+	}
+
+	ctx.SetWindowCoordinateMatrices(cb)
+	td.GenerateCommands(cb)
+
+	h -= float32(labelHeight)
+
 	// Draw the thumbnail panes
 	ld := GetColoredLinesDrawBuilder()
 	defer ReturnColoredLinesDrawBuilder(ld)
 
-	// Center them horizontally
-	x0 := (w - thumbWidth*float32(nThumbs)) / 2
-	x1 := x0 + thumbWidth*float32(nThumbs)
 	// Draw top/bottom lines
 	ld.AddLine([2]float32{x0, h}, [2]float32{x1, h}, ctx.cs.UIControl)
 	ld.AddLine([2]float32{x0, h - thumbHeight}, [2]float32{x1, h - thumbHeight}, ctx.cs.UIControl)
@@ -2603,7 +2628,6 @@ func (tp *TabbedPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 
-	ctx.SetWindowCoordinateMatrices(cb)
 	cb.LineWidth(1)
 	ld.GenerateCommands(cb)
 
