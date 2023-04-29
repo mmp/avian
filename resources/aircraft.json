@@ -1679,6 +1679,34 @@
     "Type": "L2T",
     "WTC": "M"
   },
+  "AT76": {
+    "APC": "B",
+    "Approach": {
+      "IAS": 200,
+      "MCS": 175
+    },
+    "ClimbFL150": {
+      "IAS": 210,
+      "ROC": 1000
+    },
+    "ClimbFL240": {
+      "IAS": 210,
+      "ROC": 800
+    },
+    "Cruise": {
+      "Ceiling": 250,
+      "TAS": 280
+    },
+    "Initial": {
+      "IAS": 140,
+      "ROC": 1350
+    },
+    "Manufacturer": "ATR",
+    "Name": "ATR-72-212A (600)",
+    "RECAT": "E",
+    "Type": "L2T",
+    "WTC": "M"
+  },
   "ATLA": {
     "APC": "C",
     "Approach": {
