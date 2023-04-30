@@ -2117,9 +2117,11 @@ func (iv *ImageViewPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 }
 
 func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
-	if _, ok := ctx.keyboard.Pressed[KeyEscape]; ok {
-		iv.showImageList = false
-		return
+	if ctx.keyboard != nil {
+		if _, ok := ctx.keyboard.Pressed[KeyEscape]; ok {
+			iv.showImageList = false
+			return
+		}
 	}
 
 	font := ui.fixedFont
