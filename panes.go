@@ -2162,7 +2162,12 @@ func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
 	}
 
 	for _, name := range SortedMapKeys(iv.loadedImages) {
-		dirs := strings.Split(filepath.Dir(name), "/") // TODO: windows?
+		var dirs []string
+		if runtime.GOOS == "windows" {
+			dirs = strings.Split(filepath.Dir(name), "\\")
+		} else {
+			dirs = strings.Split(filepath.Dir(name), "/")
+		}
 		dir := ""
 
 		offerImage := true
