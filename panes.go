@@ -2033,7 +2033,7 @@ func (iv *ImageViewPane) clearImages() {
 
 func (iv *ImageViewPane) CanTakeKeyboardFocus() bool { return true }
 
-func (iv *ImageViewPane) Name() string { return "ImageView: " + path.Base(iv.Directory) }
+func (iv *ImageViewPane) Name() string { return path.Base(iv.Directory) }
 
 func (iv *ImageViewPane) DrawUI() {
 	imgui.Checkbox("Draw aircraft", &iv.DrawAircraft)
