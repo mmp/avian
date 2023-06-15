@@ -485,6 +485,32 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 	metarCycle := 0
 	var prevMETARAirports []string
 
+	var dataURL, metarURL string
+
+	if status, err := FetchURL("https://status.vatsim.net/status.json"); err != nil {
+		lg.Errorf("%v: error fetching status.json", err)
+		return
+	} else {
+		var s struct {
+			Data struct {
+				V3 []string `json:"v3"`
+			} `json:"data"`
+			Metar []string `json:"metar"`
+		}
+		if err := json.Unmarshal(status, &s); err != nil {
+			lg.Errorf("Error unmarshaling vatsim response: %v", err)
+			return
+		}
+		if len(s.Data.V3) != 1 || len(s.Metar) != 1 {
+			lg.Errorf("Unexpected response format: %s -> %+v", status, s)
+			return
+		}
+		dataURL = s.Data.V3[0]
+		metarURL = s.Metar[0]
+		lg.Printf("%s: got data URL", dataURL)
+		lg.Printf("%s: got metar URL", metarURL)
+	}
+
 	for {
 		select {
 		case <-vp.ctx.Done():
@@ -502,7 +528,7 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 					prevMETARAirports = SortedMapKeys(req.metarAirports)
 
 					ap, _ := FlattenMap(req.metarAirports)
-					url := "https://metar.vatsim.net/metar.php?id=" + strings.Join(ap, ",")
+					url := metarURL + "?id=" + strings.Join(ap, ",")
 					if metarText, err := FetchURL(url); err == nil {
 						for _, line := range strings.Split(string(metarText), "\n") {
 							if metar, err := ParseMETAR(line); err == nil {
@@ -517,7 +543,7 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 				}
 				metarCycle++
 			}
-			text, err := FetchURL("https://data.vatsim.net/v3/vatsim-data.json")
+			text, err := FetchURL(dataURL)
 
 			var vsd VATSIMDataResponse
 			if err := json.Unmarshal(text, &vsd); err != nil {
