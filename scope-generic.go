@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -593,6 +594,10 @@ func (rs *RadarScopePane) drawTracks(ctx *PaneContext, transforms ScopeTransform
 			}
 
 			size := 16 * rs.GroundTracksScale
+			if runtime.GOOS == "windows" {
+				size *= platform.DPIScale()
+			}
+
 			if fp := ac.FlightPlan; fp != nil {
 				if info, ok := database.LookupAircraftType(fp.BaseType()); ok {
 					// Scale icon size based on the wake turbulence
