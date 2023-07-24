@@ -1837,6 +1837,10 @@ type ImageViewPane struct {
 	DrawAircraft bool
 	AircraftSize int32
 
+	scale         float32
+	offset        [2]float32
+	mouseDragging bool
+
 	enteredFixPos    [2]float32
 	enteredFix       string
 	enteredFixCursor int
@@ -1895,6 +1899,8 @@ func (iv *ImageViewPane) Duplicate(nameAsCopy bool) Pane {
 func (iv *ImageViewPane) Activate() {
 	iv.scrollBar = NewScrollBar(4, false)
 	iv.expanded = make(map[string]interface{})
+	iv.scale = 1
+
 	iv.loadImages()
 }
 
@@ -2100,20 +2106,36 @@ func (iv *ImageViewPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 	enteringCalibration := wm.keyboardFocusPane == iv
 
-	if !enteringCalibration {
-		if !iv.showImageList {
-			if ctx.mouse != nil && ctx.mouse.Released[0] {
-				iv.showImageList = true
-			}
-		} else {
-			iv.drawImageList(ctx, cb)
-			return
-		}
+	if !enteringCalibration && iv.showImageList {
+		lg.Errorf("ok show image list")
+		iv.drawImageList(ctx, cb)
+		return
 	}
 
-	iv.drawImage(ctx, cb)
+	quad := iv.drawImage(ctx, cb)
 	iv.drawAircraft(ctx, cb)
 	iv.handleCalibration(ctx, cb)
+
+	if ctx.mouse != nil {
+		if ctx.mouse.Wheel[1] != 0 {
+			iv.scale *= pow(1.125, -ctx.mouse.Wheel[1])
+		}
+
+		inQuad := quad.Inside(ctx.mouse.Pos)
+
+		if ctx.mouse.Dragging[MouseButtonPrimary] && inQuad {
+			iv.mouseDragging = true
+		} else if ctx.mouse.Released[0] && !iv.mouseDragging && !inQuad {
+			iv.showImageList = true
+		}
+
+		if iv.mouseDragging {
+			iv.offset = add2f(iv.offset, ctx.mouse.DragDelta)
+			if ctx.mouse.Released[0] {
+				iv.mouseDragging = false
+			}
+		}
+	}
 }
 
 func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
@@ -2220,6 +2242,8 @@ func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
 			if selected() {
 				iv.SelectedImage = name
 				iv.showImageList = false
+				iv.scale = 1
+				iv.offset = [2]float32{0, 0}
 			}
 			indent := fmt.Sprintf("%*c", 2*len(dirs)+1, ' ')
 			if atRoot {
@@ -2236,10 +2260,10 @@ func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
 	td.GenerateCommands(cb)
 }
 
-func (iv *ImageViewPane) drawImage(ctx *PaneContext, cb *CommandBuffer) {
+func (iv *ImageViewPane) drawImage(ctx *PaneContext, cb *CommandBuffer) Extent2D {
 	image, ok := iv.loadedImages[iv.SelectedImage]
 	if !ok {
-		return
+		return Extent2D{}
 	}
 
 	// Draw the selected image
@@ -2263,8 +2287,9 @@ func (iv *ImageViewPane) drawImage(ctx *PaneContext, cb *CommandBuffer) {
 		iv.enteredFix = ""
 		iv.enteredFixCursor = 0
 		wmTakeKeyboardFocus(iv, true)
-		return
 	}
+
+	return Extent2DFromPoints([][2]float32{p[0], p[2]})
 }
 
 // returns window-space extent
@@ -2280,7 +2305,16 @@ func (iv *ImageViewPane) getImageExtent(image *ImageViewImage, ctx *PaneContext)
 	}
 
 	p0 := [2]float32{dw, dh}
-	return Extent2D{p0: p0, p1: add2f(p0, [2]float32{w, h})}
+	e := Extent2D{p0: p0, p1: add2f(p0, [2]float32{w, h})}
+
+	// Scale and offset
+	e.p0 = add2f(e.p0, iv.offset)
+	e.p1 = add2f(e.p1, iv.offset)
+	center := mid2f(e.p0, e.p1)
+	e.p0 = add2f(scale2f(sub2f(e.p0, center), iv.scale), center)
+	e.p1 = add2f(scale2f(sub2f(e.p1, center), iv.scale), center)
+
+	return e
 }
 
 func (iv *ImageViewPane) drawAircraft(ctx *PaneContext, cb *CommandBuffer) {
