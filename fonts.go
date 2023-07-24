@@ -272,7 +272,7 @@ func fontsInit(r Renderer) {
 			if runtime.GOOS == "windows" {
 				// Fix font sizes to account for Windows using 96dpi but
 				// everyone else using 72...
-				sp *= 96. / 72. * dpiScale(platform)
+				sp *= 96. / 72. * platform.DPIScale()
 				sp = float32(int(sp + 0.5))
 			}
 

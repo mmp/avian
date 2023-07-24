@@ -118,7 +118,7 @@ func (s *SplitLine) Draw(ctx *PaneContext, cb *CommandBuffer) {
 }
 
 func splitLineWidth() int {
-	return int(2*dpiScale(platform) + 0.5)
+	return int(2*platform.DPIScale() + 0.5)
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -936,7 +936,7 @@ func wmDrawStatusBar(fbSize [2]float32, displaySize [2]float32, cb *CommandBuffe
 	top := displaySize[1] - ui.menuBarHeight
 	bottom := displaySize[1] - ui.menuBarHeight - wmStatusBarHeight()
 	statusBarDisplayExtent := Extent2D{p0: [2]float32{0, bottom}, p1: [2]float32{displaySize[0], top}}
-	statusBarFbExtent := statusBarDisplayExtent.Scale(dpiScale(platform))
+	statusBarFbExtent := statusBarDisplayExtent.Scale(platform.DPIScale())
 
 	cb.Scissor(int(statusBarFbExtent.p0[0]), int(statusBarFbExtent.p0[1]),
 		int(statusBarFbExtent.Width()+.5), int(statusBarFbExtent.Height()+.5))

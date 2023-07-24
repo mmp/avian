@@ -68,7 +68,7 @@ func imguiInit() *imgui.Context {
 
 func uiInit(renderer Renderer) {
 	if runtime.GOOS == "windows" {
-		imgui.CurrentStyle().ScaleAllSizes(dpiScale(platform))
+		imgui.CurrentStyle().ScaleAllSizes(platform.DPIScale())
 	}
 
 	ui.font = GetFont(FontIdentifier{Name: "Roboto Regular", Size: globalConfig.UIFontSize})
