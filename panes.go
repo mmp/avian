@@ -177,6 +177,7 @@ func NewKeyboardState() *KeyboardState {
 		keyboard.Pressed[KeyDelete] = nil
 	}
 	if imgui.IsKeyPressed(imgui.GetKeyIndex(imgui.KeyEscape)) {
+		lg.Errorf("EST pressed")
 		keyboard.Pressed[KeyEscape] = nil
 	}
 	if imgui.IsKeyPressed(imgui.GetKeyIndex(imgui.KeyTab)) {
@@ -2107,45 +2108,42 @@ func (iv *ImageViewPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	enteringCalibration := wm.keyboardFocusPane == iv
 
 	if !enteringCalibration && iv.showImageList {
-		lg.Errorf("ok show image list")
 		iv.drawImageList(ctx, cb)
-		return
+	} else {
+		quad := iv.drawImage(ctx, cb)
+		iv.drawAircraft(ctx, cb)
+		iv.handleCalibration(ctx, cb)
+
+		if ctx.mouse != nil {
+			if ctx.mouse.Wheel[1] != 0 {
+				iv.scale *= pow(1.125, -ctx.mouse.Wheel[1])
+			}
+
+			inQuad := quad.Inside(ctx.mouse.Pos)
+
+			if ctx.mouse.Dragging[MouseButtonPrimary] && inQuad {
+				iv.mouseDragging = true
+			} else if ctx.mouse.Released[0] && !iv.mouseDragging && !inQuad {
+				iv.showImageList = true
+			}
+
+			if iv.mouseDragging {
+				iv.offset = add2f(iv.offset, ctx.mouse.DragDelta)
+				if ctx.mouse.Released[0] {
+					iv.mouseDragging = false
+				}
+			}
+		}
 	}
 
-	quad := iv.drawImage(ctx, cb)
-	iv.drawAircraft(ctx, cb)
-	iv.handleCalibration(ctx, cb)
-
-	if ctx.mouse != nil {
-		if ctx.mouse.Wheel[1] != 0 {
-			iv.scale *= pow(1.125, -ctx.mouse.Wheel[1])
-		}
-
-		inQuad := quad.Inside(ctx.mouse.Pos)
-
-		if ctx.mouse.Dragging[MouseButtonPrimary] && inQuad {
-			iv.mouseDragging = true
-		} else if ctx.mouse.Released[0] && !iv.mouseDragging && !inQuad {
-			iv.showImageList = true
-		}
-
-		if iv.mouseDragging {
-			iv.offset = add2f(iv.offset, ctx.mouse.DragDelta)
-			if ctx.mouse.Released[0] {
-				iv.mouseDragging = false
-			}
+	if ctx.keyboard != nil && ctx.mouse != nil { // check mouse since otherwise multiple panes pick up the message
+		if _, ok := ctx.keyboard.Pressed[KeyEscape]; ok {
+			iv.showImageList = !iv.showImageList
 		}
 	}
 }
 
 func (iv *ImageViewPane) drawImageList(ctx *PaneContext, cb *CommandBuffer) {
-	if ctx.keyboard != nil {
-		if _, ok := ctx.keyboard.Pressed[KeyEscape]; ok {
-			iv.showImageList = false
-			return
-		}
-	}
-
 	font := ui.fixedFont
 	indent := float32(int(font.size / 2)) // left and top spacing
 	lineHeight := font.size
