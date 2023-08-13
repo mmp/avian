@@ -487,9 +487,20 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			sort.Slice(metar, func(i, j int) bool {
 				return metar[i].AirportICAO < metar[j].AirportICAO
 			})
+
 			str.WriteString("Weather:\n")
 			for _, m := range metar {
-				str.WriteString(fmt.Sprintf("\u200a\u200a\u200a  %4s ", m.AirportICAO))
+				atis := ""
+				if !a.ShowATIS {
+					for _, at := range server.GetAirportATIS(m.AirportICAO) {
+						atis += at.Code
+					}
+					if atis == "" {
+						atis = " " // align
+					}
+				}
+
+				str.WriteString(fmt.Sprintf("\u200a\u200a\u200a  %4s %s ", m.AirportICAO, atis))
 				flush()
 				style.Color = cs.TextHighlight
 				str.WriteString(fmt.Sprintf("%s ", m.Altimeter))
