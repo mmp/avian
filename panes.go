@@ -288,6 +288,7 @@ type AirportInfoPane struct {
 	ShowDepartures  bool
 	ShowDeparted    bool
 	ShowArrivals    bool
+	ShowLanded      bool
 	ShowControllers bool
 
 	lastATIS       map[string][]ATIS
@@ -381,6 +382,7 @@ func (a *AirportInfoPane) DrawUI() {
 	imgui.Checkbox("Show aircraft to depart", &a.ShowDepartures)
 	imgui.Checkbox("Show departed aircraft", &a.ShowDeparted)
 	imgui.Checkbox("Show arriving aircraft", &a.ShowArrivals)
+	imgui.Checkbox("Show landed aircraft", &a.ShowLanded)
 	imgui.Checkbox("Show controllers", &a.ShowControllers)
 }
 
@@ -534,7 +536,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 
-	var departures, airborne []*Aircraft
+	var departures, airborne, landed []*Aircraft
 	for _, ac := range server.GetFilteredAircraft(func(ac *Aircraft) bool {
 		return ac.FlightPlan != nil && !ac.LostTrack(now)
 	}) {
@@ -544,6 +546,8 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			} else {
 				airborne = append(airborne, ac)
 			}
+		} else if _, ok := a.Airports[ac.FlightPlan.ArrivalAirport]; ok && ac.OnGround() {
+			landed = append(landed, ac)
 		}
 	}
 
@@ -714,6 +718,19 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 				globalConfig.AudioSettings.HandleEvent(AudioEventNewArrival)
 				a.seenArrivals[ac.Callsign] = nil
 			}
+		}
+		str.WriteString("\n")
+	}
+
+	if a.ShowLanded && len(landed) > 0 {
+		str.WriteString("Landed:\n")
+		sort.Slice(landed, func(i, j int) bool {
+			return landed[i].Callsign < landed[j].Callsign
+		})
+		for _, ac := range landed {
+			experience := experienceIcon(ac)
+			str.WriteString(fmt.Sprintf("%s %-8s %s %8s\n", experience, ac.Callsign,
+				ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType))
 		}
 		str.WriteString("\n")
 	}
