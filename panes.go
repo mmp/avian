@@ -2144,7 +2144,20 @@ func (iv *ImageViewPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 		if ctx.mouse != nil {
 			if ctx.mouse.Wheel[1] != 0 {
+				oldScale := iv.scale
 				iv.scale *= pow(1.125, -ctx.mouse.Wheel[1])
+
+				if image, ok := iv.loadedImages[iv.SelectedImage]; ok {
+					e := iv.getImageExtent(image, ctx)
+
+					// Limit zoom out so that it always fills the pane either vertically or horizontally
+					w, h := ctx.paneExtent.Width(), ctx.paneExtent.Height()
+					xInset := e.p0[0] > 0 && e.p1[0] < w-1
+					yInset := e.p0[1] > 0 && e.p1[1] < h-1
+					if xInset && yInset {
+						iv.scale = oldScale
+					}
+				}
 			}
 
 			inQuad := quad.Inside(ctx.mouse.Pos)
