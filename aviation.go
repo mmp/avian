@@ -860,3 +860,16 @@ func RECATAircraftDistance(leader, follower *Aircraft) (int, error) {
 		}
 	}
 }
+
+// Returns bool indicating whether shortest distance of flight from a to b is
+// Eastbound (vs. Westbound).
+func IsEastbound(a, b Point2LL) bool {
+	d1, d2 := b[0]-a[0], a[0]-b[0]
+	if d1 < 0 {
+		d1 += 360
+	}
+	if d2 < 0 {
+		d2 += 360
+	}
+	return d1 < d2
+}

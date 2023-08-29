@@ -419,6 +419,22 @@ func getDistanceSortedArrivals(airports map[string]interface{}) []Arrival {
 
 func (a *AirportInfoPane) CanTakeKeyboardFocus() bool { return false }
 
+func formatAltitude(alt int) string {
+	if alt >= 18000 {
+		return "FL" + fmt.Sprintf("%d", alt/100)
+	} else {
+		th := alt / 1000
+		hu := (alt % 1000) / 100 * 100
+		if th == 0 {
+			return fmt.Sprintf("%d", hu)
+		} else if hu == 0 {
+			return fmt.Sprintf("%d,000", th)
+		} else {
+			return fmt.Sprintf("%d,%03d", th, hu)
+		}
+	}
+}
+
 func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	for _, event := range eventStream.Get(a.eventsId) {
 		switch ev := event.(type) {
@@ -501,14 +517,14 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 				str.WriteString(fmt.Sprintf("\u200a\u200a\u200a  %4s %s ", m.AirportICAO, atis))
 				flush()
-				style.Color = cs.TextHighlight
+				//style.Color = cs.TextHighlight
 				str.WriteString(fmt.Sprintf("%s ", m.Altimeter))
 				flush()
 				if m.Auto {
 					str.WriteString("AUTO ")
 					flush()
 				}
-				style.Color = cs.TextHighlight
+				//style.Color = cs.TextHighlight
 				str.WriteString(fmt.Sprintf("%s ", m.Wind))
 				flush()
 				str.WriteString(fmt.Sprintf("%s\n", m.Weather))
@@ -585,6 +601,22 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 
+	checkSquawk := func(ac *Aircraft, str *strings.Builder) {
+		if ac.Mode != Charlie || ac.Squawk != ac.AssignedSquawk {
+			flush()
+			style.Color = cs.TextHighlight
+
+			str.WriteString(" sq:")
+			if ac.Mode != Charlie {
+				str.WriteString("[C]")
+			}
+			if ac.Squawk != ac.AssignedSquawk {
+				str.WriteString(ac.AssignedSquawk.String())
+			}
+			flush()
+		}
+	}
+
 	if a.ShowDepartures && len(departures) > 0 {
 		str.WriteString("Departures:\n")
 		sort.Slice(departures, func(i, j int) bool {
@@ -592,25 +624,60 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		})
 		for _, ac := range departures {
 			route := ac.FlightPlan.Route
-			if len(route) > 10 {
-				route = route[:10]
+			if len(route) > 19 {
+				route = route[:19]
 				route += ".."
 			}
-			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %3s %5d %12s", experience, ac.Callsign,
-				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
-				ac.Scratchpad, ac.FlightPlan.Altitude, route))
 
-			// Make sure the squawk is good
-			if ac.Mode != Charlie || ac.Squawk != ac.AssignedSquawk {
-				str.WriteString(" sq:")
-				if ac.Mode != Charlie {
-					str.WriteString("[C]")
-				}
-				if ac.Squawk != ac.AssignedSquawk {
-					str.WriteString(ac.AssignedSquawk.String())
+			validAltitude := true
+			dep, dok := database.airports[ac.FlightPlan.DepartureAirport]
+			arr, aok := database.airports[ac.FlightPlan.ArrivalAirport]
+			if dok && aok {
+				east := IsEastbound(dep.Location, arr.Location)
+				alt := ac.FlightPlan.Altitude
+
+				if ac.FlightPlan.Rules == IFR {
+					if alt <= 41000 {
+						validAltitude = alt%1000 == 0
+						if east {
+							validAltitude = validAltitude && (alt/1000)%2 == 1
+						} else {
+							validAltitude = validAltitude && (alt/1000)%2 == 0
+						}
+					} else {
+						if east {
+							validAltitude = validAltitude && (alt == 450 || alt == 490 || alt == 530)
+						} else {
+							validAltitude = validAltitude && (alt == 430 || alt == 470 || alt == 510)
+						}
+					}
+				} else {
+					// VFR
+					validAltitude = alt%1000 == 500 && alt < 18000
+					alt -= 500
+					if east {
+						validAltitude = validAltitude && (alt/1000)%2 == 1
+					} else {
+						validAltitude = validAltitude && (alt/1000)%2 == 0
+					}
 				}
 			}
+
+			experience := experienceIcon(ac)
+			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s ", experience, ac.Callsign,
+				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType))
+			if !validAltitude {
+				flush()
+				style.Color = cs.TextHighlight
+				str.WriteString(fmt.Sprintf("%6s", formatAltitude(ac.FlightPlan.Altitude)))
+				flush()
+			} else {
+				str.WriteString(fmt.Sprintf("%6s", formatAltitude(ac.FlightPlan.Altitude)))
+			}
+			str.WriteString(" " + route)
+
+			// Make sure the squawk is good
+			checkSquawk(ac, &str)
 			str.WriteString("\n")
 		}
 		str.WriteString("\n")
@@ -663,24 +730,15 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		str.WriteString("Departed:\n")
 		for _, ac := range airborne {
 			route := ac.FlightPlan.Route
-			if len(route) > 10 {
-				route = route[:10]
+			if len(route) > 12 {
+				route = route[:12]
 				route += ".."
 			}
 
-			alt := ac.Altitude()
-			alt = (alt + 50) / 100 * 100
-			var clearedAlt string
-			if ac.TempAltitude != 0 {
-				clearedAlt = fmt.Sprintf("%5dT", ac.TempAltitude)
-			} else {
-				clearedAlt = fmt.Sprintf("%5d ", ac.FlightPlan.Altitude)
-			}
-
 			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %3s %s %5d ", experience, ac.Callsign,
+			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %6s %6s", experience, ac.Callsign,
 				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
-				ac.Scratchpad, clearedAlt, alt))
+				formatAltitude(ac.Altitude()), formatAltitude(ac.FlightPlan.Altitude)))
 
 			/*
 				if i+1 < len(airborne) {
@@ -689,7 +747,9 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 					writeWakeTurbulence(nil, ac)
 				}
 			*/
-			str.WriteString(fmt.Sprintf(" %12s\n", route))
+			str.WriteString(fmt.Sprintf(" %12s", route))
+			checkSquawk(ac, &str)
+			str.WriteString("\n")
 		}
 		str.WriteString("\n")
 	}
@@ -710,9 +770,9 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			}
 
 			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %3s %5d  %5d %4dnm ", experience, ac.Callsign,
-				rules(ac), ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType, ac.Scratchpad,
-				ac.TempAltitude, alt, int(arr.distance)))
+			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %6s %6s %4dnm ", experience, ac.Callsign,
+				rules(ac), ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType,
+				formatAltitude(ac.TempAltitude), formatAltitude(ac.Altitude()), int(arr.distance)))
 
 			/*
 				if i > 0 {
@@ -722,7 +782,9 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 				}
 			*/
 
-			str.WriteString(fmt.Sprintf(" %4s %s\n", ac.Squawk, star))
+			str.WriteString(fmt.Sprintf("%7s", star))
+			checkSquawk(ac, &str)
+			str.WriteString("\n")
 
 			if _, ok := a.seenArrivals[ac.Callsign]; !ok {
 				globalConfig.AudioSettings.HandleEvent(AudioEventNewArrival)
