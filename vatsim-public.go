@@ -319,10 +319,12 @@ func (vp *VATSIMPublicServer) GetUpdates() {
 				eventStream.Post(&AddedAircraftEvent{ac: ac})
 				vp.aircraft[callsign] = ac
 
-				actype := ac.FlightPlan.BaseType()
-				if _, ok := database.LookupAircraftType(actype); !ok && actype != "" {
-					lg.Errorf("%s: unknown ac type %s", ac.Callsign, actype)
-				}
+				/*
+					actype := ac.FlightPlan.BaseType()
+					if _, ok := database.LookupAircraftType(actype); !ok && actype != "" {
+						lg.Errorf("%s: unknown ac type %s", ac.Callsign, actype)
+					}
+				*/
 			} else {
 				eventStream.Post(&ModifiedAircraftEvent{ac: ourac})
 
