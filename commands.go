@@ -465,7 +465,7 @@ func (*InfoCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []strin
 		if fix, ok := database.FAA.fixes[name]; ok {
 			info = append(info, fmt.Sprintf("%s: Fix %s", name, fix.Location.DMSString()))
 		}
-		if ap, ok := database.FAA.airports[name]; ok {
+		if ap, ok := database.airports[name]; ok {
 			info = append(info, fmt.Sprintf("%s: %s: %s, alt %d", name, stopShouting(ap.Name),
 				ap.Location.DMSString(), ap.Elevation))
 		}

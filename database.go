@@ -30,11 +30,11 @@ import (
 type StaticDatabase struct {
 	// From the FAA (et al.) databases
 	FAA struct {
-		navaids  map[string]Navaid
-		airports map[string]Airport
-		fixes    map[string]Fix
-		prd      map[AirportPair][]PRDEntry
+		navaids map[string]Navaid
+		fixes   map[string]Fix
+		prd     map[AirportPair][]PRDEntry
 	}
+	airports            map[string]Airport
 	callsigns           map[string]Callsign
 	AircraftTypes       map[string]AircraftType
 	AircraftTypeAliases map[string]string
@@ -48,11 +48,10 @@ type StaticDatabase struct {
 	defaultCenter  Point2LL
 	sectorFileId   string
 
-	VORs     map[string]Point2LL
-	NDBs     map[string]Point2LL
-	fixes    map[string]Point2LL
-	airports map[string]Point2LL
-	runways  map[string][]Runway
+	VORs    map[string]Point2LL
+	NDBs    map[string]Point2LL
+	fixes   map[string]Point2LL
+	runways map[string][]Runway
 
 	sectorFileColors map[string]RGB
 
@@ -162,7 +161,7 @@ func InitializeStaticDatabase(dbChan chan *StaticDatabase) {
 	wg.Add(1)
 	go func() { db.FAA.navaids = parseNavaids(); wg.Done() }()
 	wg.Add(1)
-	go func() { db.FAA.airports = parseAirports(); wg.Done() }()
+	go func() { db.airports = parseAirports(); wg.Done() }()
 	wg.Add(1)
 	go func() { db.FAA.fixes = parseFixes(); wg.Done() }()
 	wg.Add(1)
@@ -421,7 +420,6 @@ func (db *StaticDatabase) LoadSectorFile(filename string) error {
 	db.VORs = make(map[string]Point2LL)
 	db.NDBs = make(map[string]Point2LL)
 	db.fixes = make(map[string]Point2LL)
-	db.airports = make(map[string]Point2LL)
 	db.runways = make(map[string][]Runway)
 	db.ARTCC = nil
 	db.ARTCCLow = nil
@@ -458,7 +456,6 @@ func (db *StaticDatabase) LoadSectorFile(filename string) error {
 	db.VORs = loc(sectorFile.VORs)
 	db.NDBs = loc(sectorFile.NDBs)
 	db.fixes = loc(sectorFile.Fixes)
-	db.airports = loc(sectorFile.Airports)
 
 	// Initialize the runways map, which is from airports to a slice of all
 	// of their runways.
@@ -868,13 +865,11 @@ func (db *StaticDatabase) Locate(name string) (Point2LL, bool) {
 	} else if pos, ok := db.fixes[name]; ok {
 		return pos, ok
 	} else if pos, ok := db.airports[name]; ok {
-		return pos, ok
+		return pos.Location, ok
 	} else if n, ok := db.FAA.navaids[name]; ok {
 		return n.Location, ok
 	} else if f, ok := db.FAA.fixes[name]; ok {
 		return f.Location, ok
-	} else if ap, ok := db.FAA.airports[name]; ok {
-		return ap.Location, ok
 	} else {
 		return Point2LL{}, false
 	}
@@ -1526,17 +1521,17 @@ func (s *StaticDrawConfig) Draw(ctx *PaneContext, labelFont *Font, color *RGB,
 	airportSquare := [][2]float32{[2]float32{-2, -2}, [2]float32{2, -2}, [2]float32{2, 2}, [2]float32{-2, 2}}
 	if s.DrawEverything || s.DrawAirports {
 		for _, ap := range database.airports {
-			ld.AddPolyline(transforms.WindowFromLatLongP(ap), filterColor(ctx.cs.Airport), airportSquare)
+			ld.AddPolyline(transforms.WindowFromLatLongP(ap.Location), filterColor(ctx.cs.Airport), airportSquare)
 		}
 	} else {
 		for name := range s.AirportsToDraw {
-			if pos, ok := database.airports[name]; ok {
-				ld.AddPolyline(transforms.WindowFromLatLongP(pos), filterColor(ctx.cs.Airport), airportSquare)
+			if ap, ok := database.airports[name]; ok {
+				ld.AddPolyline(transforms.WindowFromLatLongP(ap.Location), filterColor(ctx.cs.Airport), airportSquare)
 			}
 		}
 		for name := range positionConfig.sessionDrawAirports {
-			if pos, ok := database.airports[name]; ok {
-				ld.AddPolyline(transforms.WindowFromLatLongP(pos), filterColor(ctx.cs.Airport), airportSquare)
+			if ap, ok := database.airports[name]; ok {
+				ld.AddPolyline(transforms.WindowFromLatLongP(ap.Location), filterColor(ctx.cs.Airport), airportSquare)
 			}
 		}
 	}
@@ -1658,8 +1653,14 @@ func (s *StaticDrawConfig) Draw(ctx *PaneContext, labelFont *Font, color *RGB,
 			database.fixes, filterColor(ctx.cs.Fix), DrawRight)
 	}
 	if s.DrawAirportNames {
+		// FIXME: this is wasteful...
+		locs := make(map[string]Point2LL)
+		for name, ap := range database.airports {
+			locs[name] = ap.Location
+		}
+
 		drawloc(s.DrawEverything || s.DrawAirports, s.AirportsToDraw, positionConfig.sessionDrawAirports,
-			database.airports, filterColor(ctx.cs.Airport), DrawBelow)
+			locs, filterColor(ctx.cs.Airport), DrawBelow)
 	}
 
 	td.GenerateCommands(cb)

@@ -339,7 +339,7 @@ func (c *CRDAConfig) GetGhost(ac *Aircraft) *Aircraft {
 		return nil
 	}
 
-	airport, ok := database.FAA.airports[c.Airport]
+	airport, ok := database.airports[c.Airport]
 	if !ok {
 		lg.Printf("%s: airport unknown?!", c.Airport)
 		return nil

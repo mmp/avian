@@ -577,7 +577,7 @@ func (a *Aircraft) OnGround() bool {
 
 	if fp := a.FlightPlan; fp != nil {
 		for _, airport := range [2]string{fp.DepartureAirport, fp.ArrivalAirport} {
-			if ap, ok := database.FAA.airports[airport]; ok {
+			if ap, ok := database.airports[airport]; ok {
 				heightAGL := abs(a.Altitude() - ap.Elevation)
 				return heightAGL < 100
 			}
