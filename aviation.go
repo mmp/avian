@@ -287,7 +287,7 @@ func (ac *Aircraft) HoursOnNetwork(wait bool) float32 {
 			}
 			var rsp Response
 			if err := decoder.Decode(&rsp); err != nil {
-				lg.Errorf("VATSIM connections decode error: %+v", err)
+				lg.Errorf("VATSIM connections decode error: %+v: %s", err, resp.Body)
 				return
 			}
 

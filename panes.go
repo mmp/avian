@@ -177,7 +177,6 @@ func NewKeyboardState() *KeyboardState {
 		keyboard.Pressed[KeyDelete] = nil
 	}
 	if imgui.IsKeyPressed(imgui.GetKeyIndex(imgui.KeyEscape)) {
-		lg.Errorf("EST pressed")
 		keyboard.Pressed[KeyEscape] = nil
 	}
 	if imgui.IsKeyPressed(imgui.GetKeyIndex(imgui.KeyTab)) {
