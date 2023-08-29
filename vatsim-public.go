@@ -595,6 +595,11 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 					lg.Errorf("%s: bogus squawk %s: %v", p.Callsign, p.FlightPlan.AssignedTransponder, err)
 				}
 
+				// Unfortunately this isn't available in the feed, so set
+				// it to Charlie so that the info pane doesn't show a
+				// complaint...
+				ac.Mode = Charlie
+
 				if strings.Contains(p.FlightPlan.Remarks, "/V/") || strings.Contains(p.FlightPlan.Remarks, "/v/") {
 					ac.VoiceCapability = VoiceFull
 				} else if strings.Contains(p.FlightPlan.Remarks, "/R/") || strings.Contains(p.FlightPlan.Remarks, "/r/") {
