@@ -674,7 +674,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			} else {
 				str.WriteString(fmt.Sprintf("%6s", formatAltitude(ac.FlightPlan.Altitude)))
 			}
-			str.WriteString(" " + route)
+			str.WriteString(fmt.Sprintf(" %21s", route))
 
 			// Make sure the squawk is good
 			checkSquawk(ac, &str)
