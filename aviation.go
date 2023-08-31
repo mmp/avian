@@ -263,54 +263,82 @@ func (t *VATSIMTime) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-func (ac *Aircraft) HoursOnNetwork(wait bool) float32 {
-	if !ac.requestedHours {
-		ac.requestedHours = true
-		getHours := func() {
-			url := "https://api.vatsim.net/api/ratings/" + fmt.Sprintf("%d", ac.CID) + "/connections/"
+func hoursOnNetwork(ac *Aircraft) (float32, error) {
+	url := "https://api.vatsim.net/api/ratings/" + fmt.Sprintf("%d", ac.CID) + "/connections/"
 
-			lg.Printf("GET %s", url)
-			resp, err := http.Get(url)
-			if err != nil {
-				lg.Errorf("VATSIM connections GET err: %+v", err)
-				return
-			}
-			defer resp.Body.Close()
-
-			decoder := json.NewDecoder(resp.Body)
-			type Result struct {
-				Start VATSIMTime `json:"start"`
-				End   VATSIMTime `json:"end"`
-			}
-			type Response struct {
-				Results []Result `json:"results"`
-			}
-			var rsp Response
-			if err := decoder.Decode(&rsp); err != nil {
-				lg.Errorf("VATSIM connections decode error: %+v: %s", err, resp.Body)
-				return
-			}
-
-			if len(rsp.Results) == 0 {
-				lg.Errorf("Empty results response from VATSIM connections? %+v", rsp)
-				return
-			}
-
-			var total time.Duration
-			for _, r := range rsp.Results[1:] { // skip the first one, which is the current session...
-				total += time.Time(r.End).Sub(time.Time(r.Start))
-			}
-			lg.Printf("%s: CID %d %f hours", ac.Callsign, ac.CID, total.Hours())
-			// should use an atomic or a channel but whatever...
-			ac.hoursOnNetwork = float32(total.Hours())
-		}
-
-		if wait {
-			getHours()
-		} else {
-			go getHours()
-		}
+	lg.Printf("GET %s", url)
+	resp, err := http.Get(url)
+	if err != nil {
+		return 0, err
 	}
+	defer resp.Body.Close()
+
+	decoder := json.NewDecoder(resp.Body)
+	type Result struct {
+		Start VATSIMTime `json:"start"`
+		End   VATSIMTime `json:"end"`
+	}
+	type Response struct {
+		Results []Result `json:"results"`
+	}
+	var rsp Response
+	if err := decoder.Decode(&rsp); err != nil {
+		return 0, fmt.Errorf("VATSIM connections decode error: %w: %s", err, resp.Body)
+	}
+
+	if len(rsp.Results) == 0 {
+		return 0, fmt.Errorf("Empty results response from VATSIM connections? %+v", rsp)
+	}
+
+	var total time.Duration
+	for _, r := range rsp.Results[1:] { // skip the first one, which is the current session...
+		total += time.Time(r.End).Sub(time.Time(r.Start))
+	}
+	lg.Printf("%s: CID %d %f hours", ac.Callsign, ac.CID, total.Hours())
+	return float32(total.Hours()), nil
+}
+
+var ratingsRequestChan chan *Aircraft
+
+func (ac *Aircraft) HoursOnNetwork(wait bool) float32 {
+	if ac.hoursOnNetwork != 0 {
+		return ac.hoursOnNetwork
+	}
+
+	if ac.requestedHours {
+		// It's in progress...
+		return 0
+	}
+
+	ac.requestedHours = true
+
+	if wait {
+		h, err := hoursOnNetwork(ac)
+		if err == nil {
+			ac.hoursOnNetwork = h
+		} else {
+			lg.Errorf("%s: %v", ac.Callsign, err)
+		}
+	} else {
+		if ratingsRequestChan == nil {
+			ratingsRequestChan = make(chan *Aircraft, 1024)
+
+			go func() {
+				for {
+					ac := <-ratingsRequestChan
+					h, err := hoursOnNetwork(ac)
+					if err == nil {
+						ac.hoursOnNetwork = h
+					} else {
+						lg.Errorf("%s: %v", ac.Callsign, err)
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+			}()
+		}
+		ratingsRequestChan <- ac
+	}
+
 	return ac.hoursOnNetwork
 }
 
