@@ -487,7 +487,7 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 	metarCycle := 0
 	var prevMETARAirports []string
 
-	var dataURL, metarURL string
+	var dataURL, metarURL, transceiversURL string
 
 	if status, err := FetchURL("https://status.vatsim.net/status.json"); err != nil {
 		lg.Errorf("%v: error fetching status.json", err)
@@ -495,7 +495,8 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 	} else {
 		var s struct {
 			Data struct {
-				V3 []string `json:"v3"`
+				V3           []string `json:"v3"`
+				Transceivers []string `json:"transceivers"`
 			} `json:"data"`
 			Metar []string `json:"metar"`
 		}
@@ -509,8 +510,10 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 		}
 		dataURL = s.Data.V3[0]
 		metarURL = s.Metar[0]
+		transceiversURL = s.Data.Transceivers[0]
 		lg.Printf("%s: got data URL", dataURL)
 		lg.Printf("%s: got metar URL", metarURL)
+		lg.Printf("%s: got transceivers URL", transceiversURL)
 	}
 
 	for {
@@ -522,6 +525,7 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 		case req := <-vp.requestsChan:
 			resp := NewVPSUpdateResponse()
 
+			lg.Printf("Start fetch updates")
 			if len(req.metarAirports) > 0 {
 				// Fetch METAR every 90 seconds or if the airports have changed
 				changed := !SliceEqual(prevMETARAirports, SortedMapKeys(req.metarAirports))
@@ -545,6 +549,31 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 				}
 				metarCycle++
 			}
+
+			// Get transceiver frequencies...
+			transJSON, err := FetchURL(transceiversURL)
+			if err != nil {
+				lg.Errorf("%s: %v", transceiversURL, err)
+			}
+			callsignFrequencies := make(map[string][]Frequency)
+			type TransceiverStatus struct {
+				Callsign     string `json:"callsign"`
+				Transceivers []struct {
+					Frequency float32 `json:"frequency"`
+				}
+			}
+			var transceiverStatus []TransceiverStatus
+			if err := json.Unmarshal(transJSON, &transceiverStatus); err != nil {
+				lg.Errorf("Error unmarshaling transceivers: %v", err)
+			}
+			for _, tr := range transceiverStatus {
+				var freqs []Frequency
+				for _, t := range tr.Transceivers {
+					freqs = append(freqs, NewFrequency(t.Frequency/1000000))
+				}
+				callsignFrequencies[tr.Callsign] = freqs
+			}
+
 			text, err := FetchURL(dataURL)
 
 			var vsd VATSIMDataResponse
@@ -581,9 +610,10 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 				}
 
 				ac := &Aircraft{
-					CID:        p.CID,
-					Callsign:   p.Callsign,
-					FlightPlan: fp,
+					CID:              p.CID,
+					Callsign:         p.Callsign,
+					FlightPlan:       fp,
+					TunedFrequencies: callsignFrequencies[p.Callsign],
 				}
 
 				ac.Squawk, err = ParseSquawk(p.Transponder)
@@ -660,6 +690,8 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 					lg.Errorf("%s: unexpected ATIS airport", a.Callsign)
 				}
 			}
+
+			lg.Printf("Finish fetch updates")
 
 			vp.responsesChan <- resp
 		}

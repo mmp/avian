@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -229,15 +230,16 @@ func ParseSquawk(s string) (Squawk, error) {
 }
 
 type Aircraft struct {
-	CID             int
-	Callsign        string
-	Scratchpad      string
-	AssignedSquawk  Squawk // from ATC
-	Squawk          Squawk // actually squawking
-	Mode            TransponderMode
-	TempAltitude    int
-	VoiceCapability VoiceCapability
-	FlightPlan      *FlightPlan
+	CID              int
+	Callsign         string
+	Scratchpad       string
+	AssignedSquawk   Squawk // from ATC
+	Squawk           Squawk // actually squawking
+	Mode             TransponderMode
+	TempAltitude     int
+	VoiceCapability  VoiceCapability
+	FlightPlan       *FlightPlan
+	TunedFrequencies []Frequency
 
 	Tracks [10]RadarTrack
 
@@ -653,10 +655,24 @@ func (a *Aircraft) GetFormattedFlightPlan(includeRemarks bool) (contents string,
 			indent += 1 + len(a.VoiceCapability.String())
 		}
 		indstr := fmt.Sprintf("%*c", indent, ' ')
-		contents = contents + indstr + "route:" + nbsp + plan.Route + "\n"
+		contents += indstr + "route:" + nbsp + plan.Route + "\n"
 		if includeRemarks {
-			contents = contents + indstr + "rmks:" + nbsp + nbsp + plan.Remarks + "\n"
+			contents += indstr + "rmks:" + nbsp + nbsp + plan.Remarks + "\n"
 		}
+		fr := MapSlice(a.TunedFrequencies, func(f Frequency) string {
+			s := f.String()
+			for _, ctrl := range server.GetAllControllers() {
+				if ctrl.Frequency != f {
+					continue
+				}
+				if pos := ctrl.GetPosition(); pos != nil {
+					s += " [" + ctrl.Callsign + ":" + pos.SectorId + "]"
+				}
+			}
+			return s
+		})
+		sort.Strings(fr)
+		contents += indstr + "freq:" + nbsp + nbsp + strings.Join(fr, ", ") + "\n"
 
 		return contents, indent
 	}

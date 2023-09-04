@@ -617,6 +617,30 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 
+	controllers := server.GetAllControllers()
+	frequencyToSectorId := make(map[Frequency]string)
+	for _, ctrl := range controllers {
+		if pos := ctrl.GetPosition(); pos != nil {
+			// TODO: handle conflicts?
+			frequencyToSectorId[ctrl.Frequency] = pos.SectorId
+		}
+	}
+	radioTuned := func(ac *Aircraft) {
+		found := false
+		for _, fr := range ac.TunedFrequencies {
+			if fr == 122800 {
+				str.WriteString("  UN")
+				found = true
+			} else if id, ok := frequencyToSectorId[fr]; ok {
+				str.WriteString(fmt.Sprintf("%4s", id))
+				found = true
+			}
+		}
+		if !found {
+			str.WriteString("    ")
+		}
+	}
+
 	if a.ShowDepartures && len(departures) > 0 {
 		str.WriteString("Departures:\n")
 		sort.Slice(departures, func(i, j int) bool {
@@ -676,6 +700,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			}
 			str.WriteString(fmt.Sprintf(" %21s", route))
 
+			radioTuned(ac)
 			// Make sure the squawk is good
 			checkSquawk(ac, &str)
 			str.WriteString("\n")
@@ -747,7 +772,8 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 					writeWakeTurbulence(nil, ac)
 				}
 			*/
-			str.WriteString(fmt.Sprintf(" %12s", route))
+			str.WriteString(fmt.Sprintf(" %14s", route))
+			radioTuned(ac)
 			checkSquawk(ac, &str)
 			str.WriteString("\n")
 		}
@@ -783,6 +809,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			*/
 
 			str.WriteString(fmt.Sprintf("%7s", star))
+			radioTuned(ac)
 			checkSquawk(ac, &str)
 			str.WriteString("\n")
 
@@ -801,13 +828,14 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		})
 		for _, ac := range landed {
 			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %8s\n", experience, ac.Callsign,
+			str.WriteString(fmt.Sprintf("%s %-8s %s %8s", experience, ac.Callsign,
 				ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType))
+			radioTuned(ac)
+			str.WriteString("\n")
 		}
 		str.WriteString("\n")
 	}
 
-	controllers := server.GetAllControllers()
 	if a.ShowControllers && len(controllers) > 0 {
 		str.WriteString("Controllers:\n")
 		sort.Slice(controllers, func(i, j int) bool { return controllers[i].Callsign < controllers[j].Callsign })
