@@ -281,14 +281,17 @@ func unmarshalPane(paneType string, data []byte) (Pane, error) {
 type AirportInfoPane struct {
 	Airports map[string]interface{}
 
-	ShowTime        bool
-	ShowMETAR       bool
-	ShowATIS        bool
-	ShowDepartures  bool
-	ShowDeparted    bool
-	ShowArrivals    bool
-	ShowLanded      bool
-	ShowControllers bool
+	ShowTime         bool
+	ShowMETAR        bool
+	ShowATIS         bool
+	ShowRandomOnFreq bool
+	ShowDepartures   bool
+	ShowDeparted     bool
+	ShowArrivals     bool
+	ShowLanded       bool
+	ShowControllers  bool
+
+	ControllerFrequency Frequency
 
 	lastATIS       map[string][]ATIS
 	seenDepartures map[string]interface{}
@@ -378,6 +381,11 @@ func (a *AirportInfoPane) DrawUI() {
 	imgui.Checkbox("Show time", &a.ShowTime)
 	imgui.Checkbox("Show weather", &a.ShowMETAR)
 	imgui.Checkbox("Show ATIS", &a.ShowATIS)
+	imgui.Checkbox("Show randoms on frequency", &a.ShowRandomOnFreq)
+	imgui.SameLine()
+	fr := int32(a.ControllerFrequency)
+	imgui.InputIntV("Frequency", &fr, 100000, 140000, 0)
+	a.ControllerFrequency = Frequency(fr)
 	imgui.Checkbox("Show aircraft to depart", &a.ShowDepartures)
 	imgui.Checkbox("Show departed aircraft", &a.ShowDeparted)
 	imgui.Checkbox("Show arriving aircraft", &a.ShowArrivals)
@@ -562,7 +570,14 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 
-	var departures, airborne, landed []*Aircraft
+	var airportLocations []Point2LL
+	for icao := range a.Airports {
+		if ap, ok := database.airports[icao]; ok {
+			airportLocations = append(airportLocations, ap.Location)
+		}
+	}
+
+	var departures, airborne, landed, randomOnFreq []*Aircraft
 	for _, ac := range server.GetFilteredAircraft(func(ac *Aircraft) bool {
 		return ac.FlightPlan != nil && !ac.LostTrack(now)
 	}) {
@@ -574,6 +589,14 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			}
 		} else if _, ok := a.Airports[ac.FlightPlan.ArrivalAirport]; ok && ac.OnGround() {
 			landed = append(landed, ac)
+		} else if FindIf(ac.TunedFrequencies,
+			func(f Frequency) bool { return f == a.ControllerFrequency }) != -1 {
+			for _, loc := range airportLocations {
+				if nmdistance2ll(loc, ac.Position()) < 250 {
+					randomOnFreq = append(randomOnFreq, ac)
+					break
+				}
+			}
 		}
 	}
 
@@ -639,6 +662,19 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		if !found {
 			str.WriteString("    ")
 		}
+	}
+
+	if a.ShowRandomOnFreq && len(randomOnFreq) > 0 {
+		str.WriteString("Randoms [" + a.ControllerFrequency.String() + "]:\n")
+		sort.Slice(randomOnFreq, func(i, j int) bool {
+			return randomOnFreq[i].Callsign < randomOnFreq[j].Callsign
+		})
+		for _, ac := range randomOnFreq {
+			experience := experienceIcon(ac)
+			str.WriteString(fmt.Sprintf("%s %-8s %s %s-%s\n", experience, ac.Callsign,
+				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport))
+		}
+		str.WriteString("\n")
 	}
 
 	if a.ShowDepartures && len(departures) > 0 {
