@@ -641,21 +641,27 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	}
 
 	controllers := server.GetAllControllers()
-	frequencyToSectorId := make(map[Frequency]string)
+	frequencyToSectorId := make(map[Frequency][]string)
 	for _, ctrl := range controllers {
 		if pos := ctrl.GetPosition(); pos != nil {
 			// TODO: handle conflicts?
-			frequencyToSectorId[ctrl.Frequency] = pos.SectorId
+			frequencyToSectorId[ctrl.Frequency] = append(frequencyToSectorId[ctrl.Frequency], pos.SectorId)
 		}
 	}
+	for _, ids := range frequencyToSectorId {
+		sort.Strings(ids)
+	}
+
 	radioTuned := func(ac *Aircraft) {
 		found := false
 		for _, fr := range ac.TunedFrequencies {
 			if fr == 122800 {
 				str.WriteString("  UN")
 				found = true
-			} else if id, ok := frequencyToSectorId[fr]; ok {
-				str.WriteString(fmt.Sprintf("%4s", id))
+			} else if ids, ok := frequencyToSectorId[fr]; ok {
+				for _, id := range ids {
+					str.WriteString(fmt.Sprintf("%4s", id))
+				}
 				found = true
 			}
 		}
