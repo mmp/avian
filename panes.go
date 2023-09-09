@@ -480,6 +480,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	var strs []string
 	var styles []TextStyle
 	nLines := 1
+	lineToCallsign := make(map[int]string)
 
 	flush := func() {
 		if str.Len() == 0 {
@@ -676,6 +677,8 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			return randomOnFreq[i].Callsign < randomOnFreq[j].Callsign
 		})
 		for _, ac := range randomOnFreq {
+			flush()
+			lineToCallsign[nLines-1] = ac.Callsign
 			experience := experienceIcon(ac)
 			str.WriteString(fmt.Sprintf("%s %-8s %s %s-%s\n", experience, ac.Callsign,
 				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport))
@@ -689,6 +692,8 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			return departures[i].Callsign < departures[j].Callsign
 		})
 		for _, ac := range departures {
+			flush()
+			lineToCallsign[nLines-1] = ac.Callsign
 			route := ac.FlightPlan.Route
 			if len(route) > 19 {
 				route = route[:19]
@@ -796,6 +801,8 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 		str.WriteString("Departed:\n")
 		for _, ac := range airborne {
+			flush()
+			lineToCallsign[nLines-1] = ac.Callsign
 			route := ac.FlightPlan.Route
 			if len(route) > 12 {
 				route = route[:12]
@@ -827,6 +834,8 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		str.WriteString("Arrivals:\n")
 		for _, arr := range arrivals {
 			ac := arr.aircraft
+			flush()
+			lineToCallsign[nLines-1] = ac.Callsign
 			alt := ac.Altitude()
 			alt = (alt + 50) / 100 * 100
 
@@ -869,6 +878,8 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			return landed[i].Callsign < landed[j].Callsign
 		})
 		for _, ac := range landed {
+			flush()
+			lineToCallsign[nLines-1] = ac.Callsign
 			experience := experienceIcon(ac)
 			str.WriteString(fmt.Sprintf("%s %-8s %s %8s", experience, ac.Callsign,
 				ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType))
@@ -937,6 +948,15 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	td.GenerateCommands(&a.cb)
 
 	a.sb.Draw(ctx, &a.cb)
+
+	// Handle aircraft selection
+	if ctx.mouse != nil && ctx.mouse.Clicked[MouseButtonPrimary] {
+		y := int(texty - 1 - ctx.mouse.Pos[1])
+		line := int(y) / a.font.size
+		if callsign, ok := lineToCallsign[line]; ok {
+			positionConfig.selectedAircraft = server.GetAircraft(callsign)
+		}
+	}
 
 	cb.Call(a.cb)
 }
