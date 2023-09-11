@@ -815,8 +815,10 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			} else {
 				airborne = append(airborne, ac)
 			}
-		} else if _, ok := a.Airports[ac.FlightPlan.ArrivalAirport]; ok && ac.OnGround() {
-			landed = append(landed, ac)
+		} else if _, ok := a.Airports[ac.FlightPlan.ArrivalAirport]; ok {
+			if ac.OnGround() {
+				landed = append(landed, ac)
+			}
 		} else if FindIf(ac.TunedFrequencies,
 			func(f Frequency) bool { return f == a.ControllerFrequency }) != -1 {
 			for _, loc := range airportLocations {
@@ -907,7 +909,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			flush()
 			lineToCallsign[nLines-1] = ac.Callsign
 			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s-%s\n", experience, ac.Callsign,
+			str.WriteString(fmt.Sprintf("%s %-8s %s %s-%s", experience, ac.Callsign,
 				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport))
 		}
 		str.WriteString("\n")
@@ -972,7 +974,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			} else {
 				str.WriteString(fmt.Sprintf("%6s", formatAltitude(ac.FlightPlan.Altitude)))
 			}
-			str.WriteString(fmt.Sprintf(" %21s", route))
+			str.WriteString(fmt.Sprintf(" %-21s", route))
 
 			radioTuned(ac)
 			// Make sure the squawk is good
@@ -1030,6 +1032,10 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	if a.ShowArrivals && len(arrivals) > 0 {
 		str.WriteString("Arrivals:\n")
 		for _, arr := range arrivals {
+			if arr.distance > 1000 {
+				break
+			}
+
 			ac := arr.aircraft
 			flush()
 			lineToCallsign[nLines-1] = ac.Callsign
