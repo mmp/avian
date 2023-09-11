@@ -14,6 +14,10 @@ import (
 	"github.com/mmp/imgui-go/v4"
 )
 
+type RadarScopeDrawer interface {
+	DrawScope(ctx *PaneContext, transforms ScopeTransformations, cb *CommandBuffer, font *Font)
+}
+
 type RadarScopePane struct {
 	ScopeName          string
 	Center             Point2LL
@@ -431,6 +435,14 @@ func (rs *RadarScopePane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	cb.PointSize(rs.PointSize)
 	cb.LineWidth(rs.LineWidth)
 	rs.StaticDraw.Draw(ctx, rs.labelFont, nil, transforms, cb)
+
+	// Allow panes to draw on the radar scope (used e.g. for approaches
+	// from the info pane...)
+	positionConfig.DisplayRoot.VisitPanes(func(pane Pane) {
+		if d, ok := pane.(RadarScopeDrawer); ok {
+			d.DrawScope(ctx, transforms, cb, rs.labelFont)
+		}
+	})
 
 	if rs.DrawCompass && !ctx.thumbnail {
 		p := rs.Center
