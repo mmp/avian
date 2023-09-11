@@ -618,11 +618,11 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 
 				ac.Squawk, err = ParseSquawk(p.Transponder)
 				if err != nil {
-					lg.Errorf("%s: bogus squawk %s: %v", p.Callsign, p.Transponder, err)
+					lg.Printf("%s: bogus squawk %s: %v", p.Callsign, p.Transponder, err)
 				}
 				ac.AssignedSquawk, err = ParseSquawk(p.FlightPlan.AssignedTransponder)
 				if err != nil {
-					lg.Errorf("%s: bogus squawk %s: %v", p.Callsign, p.FlightPlan.AssignedTransponder, err)
+					lg.Printf("%s: bogus squawk %s: %v", p.Callsign, p.FlightPlan.AssignedTransponder, err)
 				}
 
 				// Unfortunately this isn't available in the feed, so set
