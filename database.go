@@ -194,7 +194,7 @@ func InitializeStaticDatabase(dbChan chan *StaticDatabase) {
 // FAA databases
 
 var (
-	// https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription_2022-07-14/
+	// https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/
 	//go:embed resources/NAV_BASE.csv.zst
 	navBaseRaw string
 	//go:embed resources/FIX_BASE.csv.zst
