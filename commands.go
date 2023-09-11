@@ -11,8 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -39,18 +37,9 @@ var (
 	cliCommands []CLICommand = []CLICommand{
 		&NYPRDCommand{},
 		&PRDCommand{},
-
 		&FindCommand{},
 		&DrawRouteCommand{},
-		&AddToSessionDrawListCommand{},
-
-		&WindCommand{},
 		&InfoCommand{},
-		&TimerCommand{},
-		&ToDoCommand{},
-		&TrafficCommand{},
-
-		&EchoCommand{},
 	}
 )
 
@@ -308,83 +297,6 @@ func (*DrawRouteCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []
 	}
 }
 
-type AddToSessionDrawListCommand struct{}
-
-func (*AddToSessionDrawListCommand) Names() []string                    { return []string{"show"} }
-func (*AddToSessionDrawListCommand) Usage() string                      { return "" }
-func (*AddToSessionDrawListCommand) TakesAircraft() bool                { return false }
-func (*AddToSessionDrawListCommand) TakesController() bool              { return false }
-func (*AddToSessionDrawListCommand) AdditionalArgs() (min int, max int) { return 1, 1000 }
-func (*AddToSessionDrawListCommand) Help() string {
-	return "Show the specified fixes, VORs, NDBs, or airports on scopes just for this session"
-}
-func (*AddToSessionDrawListCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	var unknown []string
-	for _, item := range args {
-		item = strings.ToUpper(item)
-		if _, ok := database.VORs[item]; ok {
-			positionConfig.sessionDrawVORs[item] = nil
-		} else if _, ok := database.NDBs[item]; ok {
-			positionConfig.sessionDrawNDBs[item] = nil
-		} else if _, ok := database.fixes[item]; ok {
-			positionConfig.sessionDrawFixes[item] = nil
-		} else if _, ok := database.airports[item]; ok {
-			positionConfig.sessionDrawAirports[item] = nil
-		} else {
-			unknown = append(unknown, item)
-		}
-	}
-	if len(unknown) > 0 {
-		return ErrorStringConsoleEntry(strings.Join(unknown, ", ") + ": not found")
-	} else {
-		return nil
-	}
-}
-
-type WindCommand struct{}
-
-func (*WindCommand) Names() []string { return []string{"w", "wind"} }
-func (*WindCommand) Usage() string {
-	return "[wind] [runway]"
-}
-func (*WindCommand) TakesAircraft() bool                { return false }
-func (*WindCommand) TakesController() bool              { return false }
-func (*WindCommand) AdditionalArgs() (min int, max int) { return 2, 2 }
-
-func (*WindCommand) Help() string {
-	return "Prints wind components at specified runway."
-}
-func (*WindCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	if len(args[0]) != 5 {
-		return ErrorStringConsoleEntry(args[0] + ": doesn't look like a wind specifier")
-	}
-	if len(args[1]) > 2 {
-		return ErrorStringConsoleEntry(args[1] + ": doesn't look like a runway specifier")
-	}
-
-	dir, err := strconv.Atoi(args[0][:3])
-	if err != nil {
-		return ErrorConsoleEntry(err)
-	}
-	speed, err := strconv.Atoi(args[0][3:])
-	if err != nil {
-		return ErrorConsoleEntry(err)
-	}
-	rwy, err := strconv.Atoi(args[1])
-	if err != nil {
-		return ErrorConsoleEntry(err)
-	}
-
-	diff := float32(dir - 10*rwy)
-	head := float32(speed) * cos(radians(diff))
-	cross := abs(float32(speed) * sin(radians(diff)))
-	if head > 0 {
-		return StringConsoleEntry(fmt.Sprintf("Diff %f, headwind %.1f kts, crosswind %.1f kts", diff, head, cross))
-	} else {
-		return StringConsoleEntry(fmt.Sprintf("Diff %f, tailwind %.1f kts, crosswind %.1f kts", diff, -head, cross))
-	}
-}
-
 type InfoCommand struct{}
 
 func (*InfoCommand) Names() []string { return []string{"i", "info"} }
@@ -506,119 +418,4 @@ func (*InfoCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []strin
 	} else {
 		return ErrorStringConsoleEntry(cmd + ": must either specify a fix/VOR/etc. or select an aircraft")
 	}
-}
-
-type TrafficCommand struct{}
-
-func (*TrafficCommand) Names() []string                    { return []string{"traffic", "tf"} }
-func (*TrafficCommand) Usage() string                      { return "" }
-func (*TrafficCommand) TakesAircraft() bool                { return true }
-func (*TrafficCommand) TakesController() bool              { return false }
-func (*TrafficCommand) AdditionalArgs() (min int, max int) { return 0, 0 }
-func (*TrafficCommand) Help() string {
-	return "Summarizes information related to nearby traffic for the specified aircraft."
-}
-func (*TrafficCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	type Traffic struct {
-		ac       *Aircraft
-		distance float32
-	}
-	now := server.CurrentTime()
-	filter := func(a *Aircraft) bool {
-		return a.Callsign != ac.Callsign && !a.LostTrack(now) && !a.OnGround()
-	}
-
-	lateralLimit := float32(6.)
-	verticalLimit := 1500
-
-	var traffic []Traffic
-	for _, other := range server.GetFilteredAircraft(filter) {
-		ldist := nmdistance2ll(ac.Position(), other.Position())
-		vdist := abs(ac.Altitude() - other.Altitude())
-		if ldist < lateralLimit && vdist < verticalLimit {
-			traffic = append(traffic, Traffic{other, ldist})
-		}
-	}
-
-	sort.Slice(traffic, func(i, j int) bool {
-		if traffic[i].distance == traffic[j].distance {
-			return traffic[i].ac.Callsign < traffic[j].ac.Callsign
-		}
-		return traffic[i].distance < traffic[j].distance
-	})
-
-	str := ""
-	for _, t := range traffic {
-		alt := (t.ac.Altitude() + 250) / 500 * 500
-		hto := headingp2ll(ac.Position(), t.ac.Position(), database.MagneticVariation)
-		hdiff := hto - ac.Heading()
-		clock := headingAsHour(hdiff)
-		actype := "???"
-		if t.ac.FlightPlan != nil {
-			actype = t.ac.FlightPlan.AircraftType
-		}
-		str += fmt.Sprintf("  %-10s %2d o'c %2d mi %2s bound %-10s %5d' [%s]\n",
-			ac.Callsign, clock, int(t.distance+0.5),
-			shortCompass(t.ac.Heading()), actype, int(alt), t.ac.Callsign)
-	}
-
-	return StringConsoleEntry(str)
-}
-
-type TimerCommand struct{}
-
-func (*TimerCommand) Names() []string { return []string{"timer"} }
-func (*TimerCommand) Usage() string {
-	return "<minutes> <message...>"
-}
-func (*TimerCommand) TakesAircraft() bool                { return false }
-func (*TimerCommand) TakesController() bool              { return false }
-func (*TimerCommand) AdditionalArgs() (min int, max int) { return 1, 1000 }
-func (*TimerCommand) Help() string {
-	return "Starts a timer for the specified number of minutes with the associated message."
-}
-func (*TimerCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	if minutes, err := strconv.ParseFloat(args[0], 64); err != nil {
-		return ErrorStringConsoleEntry(args[0] + ": expected time in minutes")
-	} else {
-		end := time.Now().Add(time.Duration(minutes * float64(time.Minute)))
-		timer := TimerReminderItem{end: end, note: strings.Join(args[1:], " ")}
-
-		positionConfig.timers = append(positionConfig.timers, timer)
-		sort.Slice(positionConfig.timers, func(i, j int) bool {
-			return positionConfig.timers[i].end.Before(positionConfig.timers[j].end)
-		})
-
-		return nil
-	}
-}
-
-type ToDoCommand struct{}
-
-func (*ToDoCommand) Names() []string                    { return []string{"todo"} }
-func (*ToDoCommand) Usage() string                      { return "<message...>" }
-func (*ToDoCommand) TakesAircraft() bool                { return false }
-func (*ToDoCommand) TakesController() bool              { return false }
-func (*ToDoCommand) AdditionalArgs() (min int, max int) { return 1, 1000 }
-func (*ToDoCommand) Help() string {
-	return "Adds a todo with the associated message to the todo list."
-}
-func (*ToDoCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	note := strings.Join(args[0:], " ")
-	positionConfig.todos = append(positionConfig.todos, ToDoReminderItem{note: note})
-	return nil
-}
-
-type EchoCommand struct{}
-
-func (*EchoCommand) Names() []string                    { return []string{"echo"} }
-func (*EchoCommand) Usage() string                      { return "<message...>" }
-func (*EchoCommand) TakesAircraft() bool                { return false }
-func (*EchoCommand) TakesController() bool              { return false }
-func (*EchoCommand) AdditionalArgs() (min int, max int) { return 0, 1000 }
-func (*EchoCommand) Help() string {
-	return "Prints the parameters given to it."
-}
-func (*EchoCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	return StringConsoleEntry(strings.Join(args, " "))
 }

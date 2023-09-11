@@ -1219,23 +1219,11 @@ func uiDrawNewPaneSelector(label, preview string) (name string, pane Pane) {
 		if imgui.Selectable("Flight plan") {
 			name, pane = "Flight plan", NewFlightPlanPane()
 		}
-		if imgui.Selectable("Flight strip") {
-			name, pane = "Flight strip", NewFlightStripPane()
-		}
 		if imgui.Selectable("Image viewer") {
 			name, pane = "Image viewer", NewImageViewPane()
 		}
-		if imgui.Selectable("Notes viewer") {
-			name, pane = "Notes viewer", NewNotesViewPane()
-		}
-		if imgui.Selectable("Performance statistics") {
-			name, pane = "Performance statistics", NewPerformancePane()
-		}
 		if imgui.Selectable("Radar scope") {
 			name, pane = "Radar scope", NewRadarScopePane("(Unnamed)")
-		}
-		if imgui.Selectable("Reminders") {
-			name, pane = "Reminders", NewReminderPane()
 		}
 		if imgui.Selectable("Tabbed Window") {
 			name, pane = "Tabbed window", NewTabbedPane()
