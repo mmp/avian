@@ -284,6 +284,7 @@ type AirportInfoPane struct {
 	ShowTime         bool
 	ShowMETAR        bool
 	ShowATIS         bool
+	ShowApproaches   bool
 	ShowRandomOnFreq bool
 	ShowDepartures   bool
 	ShowDeparted     bool
@@ -304,6 +305,45 @@ type AirportInfoPane struct {
 
 	sb *ScrollBar
 	cb CommandBuffer
+	approaches map[string][]Approach
+	// airport -> code
+	activeApproaches map[string]map[string]interface{}
+}
+
+type ApproachFix struct {
+	Fix        string
+	Altitude   int
+	PT         bool
+	DrawOffset [2]float32
+}
+
+func (a ApproachFix) String() string {
+	s := a.Fix
+	s += fmt.Sprintf("-%d", a.Altitude/100)
+	if a.PT {
+		s += " PT"
+	}
+	return s
+}
+
+type ApproachFixArray []ApproachFix
+
+func (a ApproachFixArray) String() string {
+	var strs []string
+	for _, ap := range a {
+		strs = append(strs, ap.String())
+	}
+
+	return strings.Join(strs, "/")
+}
+
+type Approach struct {
+	Runway string
+	Type   string
+	Code   string
+	IAFs   ApproachFixArray
+	IFs    ApproachFixArray
+	FAF    ApproachFix
 }
 
 func NewAirportInfoPane() *AirportInfoPane {
@@ -353,6 +393,126 @@ func (a *AirportInfoPane) Activate() {
 		server.AddAirportForWeather(ap)
 	}
 	a.eventsId = eventStream.Subscribe()
+
+	if a.approaches == nil {
+		a.approaches = make(map[string][]Approach)
+		a.activeApproaches = make(map[string]map[string]interface{})
+
+		// Hardcoded, but yolo...
+		a.activeApproaches["KJFK"] = make(map[string]interface{})
+		a.approaches["KJFK"] = []Approach{
+			Approach{Runway: "4R", Type: "ILS", Code: "I4R",
+				IFs: []ApproachFix{ApproachFix{Fix: "ZETAL", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "EBBEE", Altitude: 1500, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "4L", Type: "ILS", Code: "I4L",
+				IFs: []ApproachFix{ApproachFix{Fix: "AROKE", Altitude: 2000, DrawOffset: [2]float32{-5, 5}}},
+				FAF: ApproachFix{Fix: "KRSTL", Altitude: 1500, DrawOffset: [2]float32{-5, 10}}},
+			Approach{Runway: "13L", Type: "RNAV Z", Code: "R3L",
+				IFs: []ApproachFix{ApproachFix{Fix: "ASALT", Altitude: 3000, DrawOffset: [2]float32{-5, 5}}},
+				FAF: ApproachFix{Fix: "CNRSE", Altitude: 2000, DrawOffset: [2]float32{-5, 5}}},
+			Approach{Runway: "22L", Type: "ILS", Code: "I2L",
+				IFs: []ApproachFix{ApproachFix{Fix: "ROSLY", Altitude: 3000, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "ZALPO", Altitude: 1800, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "22L", Type: "RNAV X", Code: "R2L",
+				IFs: []ApproachFix{ApproachFix{Fix: "CAPIT", Altitude: 2900, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "ENEEE", Altitude: 1700, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "22R", Type: "ILS", Code: "I2R",
+				IFs: []ApproachFix{ApproachFix{Fix: "CORVT", Altitude: 3000, DrawOffset: [2]float32{-5, 10}}},
+				FAF: ApproachFix{Fix: "MATTR", Altitude: 1900, DrawOffset: [2]float32{-5, 5}}},
+			Approach{Runway: "22R", Type: "RNAV", Code: "R2R",
+				IFs: []ApproachFix{ApproachFix{Fix: "RIVRA", Altitude: 3000, DrawOffset: [2]float32{-5, 5}}},
+				FAF: ApproachFix{Fix: "HENEB", Altitude: 1900, DrawOffset: [2]float32{-5, 5}}},
+			Approach{Runway: "31R", Type: "ILS", Code: "I1R",
+				IFs: []ApproachFix{ApproachFix{Fix: "CATOD", Altitude: 3000, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "ZULAB", Altitude: 1900, DrawOffset: [2]float32{5, 10}}},
+			Approach{Runway: "31L", Type: "ILS", Code: "I1L",
+				IFs: []ApproachFix{ApproachFix{Fix: "ZACHS", Altitude: 2000, DrawOffset: [2]float32{-5, 5}}},
+				FAF: ApproachFix{Fix: "MEALS", Altitude: 1800, DrawOffset: [2]float32{-5, 5}}},
+		}
+		a.activeApproaches["KFRG"] = make(map[string]interface{})
+		a.approaches["KFRG"] = []Approach{
+			Approach{Runway: "1", Type: "RNAV", Code: "R1",
+				IAFs: []ApproachFix{ApproachFix{Fix: "ZACHS", Altitude: 2000, DrawOffset: [2]float32{-5, 5}},
+					ApproachFix{Fix: "WULUG", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "BLAND", Altitude: 2000, DrawOffset: [2]float32{-5, 0}}},
+				FAF: ApproachFix{Fix: "DEUCE", Altitude: 1600, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "14", Type: "ILS", Code: "I14",
+				IFs: []ApproachFix{ApproachFix{Fix: "FRIKK", Altitude: 1600, PT: true}},
+				FAF: ApproachFix{Fix: "FRIKK", Altitude: 1400}},
+			Approach{Runway: "14", Type: "RNAV Z", Code: "R4Z",
+				IFs: []ApproachFix{ApproachFix{Fix: "SEHDO", Altitude: 2000},
+					ApproachFix{Fix: "LAAZE", Altitude: 1400}},
+				FAF: ApproachFix{Fix: "ALABE", Altitude: 1400}},
+			Approach{Runway: "19", Type: "RNAV", Code: "R19",
+				IAFs: []ApproachFix{ApproachFix{Fix: "BLINZ", Altitude: 2000, DrawOffset: [2]float32{-5, 5}},
+					ApproachFix{Fix: "ZOSAB", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "DEBYE", Altitude: 2000, DrawOffset: [2]float32{0, 15}}},
+				FAF: ApproachFix{Fix: "MOIRE", Altitude: 1500, DrawOffset: [2]float32{10, 5}}},
+			Approach{Runway: "32", Type: "RNAV", Code: "R32",
+				IAFs: []ApproachFix{ApproachFix{Fix: "JUSIN", Altitude: 2000, DrawOffset: [2]float32{-1, 0}},
+					ApproachFix{Fix: "SHYNA", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "TRCCY", Altitude: 2000}},
+				FAF: ApproachFix{Fix: "ALFED", Altitude: 1400, DrawOffset: [2]float32{10, 5}}},
+		}
+		a.activeApproaches["KISP"] = make(map[string]interface{})
+		a.approaches["KISP"] = []Approach{
+			Approach{Runway: "6", Type: "ILS", Code: "I6",
+				IFs: []ApproachFix{ApproachFix{Fix: "YOSUR", Altitude: 1600, PT: true}},
+				FAF: ApproachFix{Fix: "YOSUR", Altitude: 1600}},
+			Approach{Runway: "6", Type: "RNAV", Code: "R6",
+				IFs: []ApproachFix{ApproachFix{Fix: "DEERY", Altitude: 2000, PT: true, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "YOSUR", Altitude: 1600, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "15R", Type: "RNAV", Code: "R5R",
+				IFs: []ApproachFix{ApproachFix{Fix: "FORMU", Altitude: 2000, PT: true, DrawOffset: [2]float32{5, 10}}},
+				FAF: ApproachFix{Fix: "ZIVUX", Altitude: 1600, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "24", Type: "ILS", Code: "I24",
+				IAFs: []ApproachFix{ApproachFix{Fix: "CCC", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				IFs:  []ApproachFix{ApproachFix{Fix: "CORAM", Altitude: 2000, DrawOffset: [2]float32{0, 15}}},
+				FAF:  ApproachFix{Fix: "RIZER", Altitude: 1400}},
+			Approach{Runway: "24", Type: "RNAV", Code: "R24",
+				IAFs: []ApproachFix{ApproachFix{Fix: "CCC", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				IFs:  []ApproachFix{ApproachFix{Fix: "CORAM", Altitude: 2000, DrawOffset: [2]float32{0, 15}}},
+				FAF:  ApproachFix{Fix: "UKEGE", Altitude: 1400}},
+			Approach{Runway: "33L", Type: "RNAV", Code: "R3L",
+				IFs: []ApproachFix{ApproachFix{Fix: "BJACK", Altitude: 2000, PT: true, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "JATEV", Altitude: 1500, DrawOffset: [2]float32{5, 10}}},
+		}
+		a.activeApproaches["KHVN"] = make(map[string]interface{})
+		a.approaches["KHVN"] = []Approach{
+			Approach{Runway: "2", Type: "ILS", Code: "I2",
+				IFs: []ApproachFix{ApproachFix{Fix: "SALLT", Altitude: 1500, PT: true}},
+				FAF: ApproachFix{Fix: "SALLT", Altitude: 1500}},
+			Approach{Runway: "2", Type: "RNAV", Code: "R2",
+				IAFs: []ApproachFix{ApproachFix{Fix: "NESSI", Altitude: 1800, DrawOffset: [2]float32{-5, 5}},
+					ApproachFix{Fix: "KEYED", Altitude: 1800, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "PEPER", Altitude: 1800, PT: true, DrawOffset: [2]float32{-5, -5}}},
+				FAF: ApproachFix{Fix: "SALLT", Altitude: 1500, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "20", Type: "RNAV", Code: "R20",
+				IAFs: []ApproachFix{ApproachFix{Fix: "HFD", Altitude: 2600, DrawOffset: [2]float32{5, 5}},
+					ApproachFix{Fix: "SORRY", Altitude: 2600, DrawOffset: [2]float32{-5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "GUUMP", Altitude: 2600, DrawOffset: [2]float32{5, 0}}},
+				FAF: ApproachFix{Fix: "ELLVS", Altitude: 1700}},
+		}
+	}
+
+	// Check fixes are valid
+	for icao, aps := range a.approaches {
+		for _, ap := range aps {
+			checkFix := func(af ApproachFix) {
+				if _, ok := database.Locate(af.Fix); !ok {
+					lg.Errorf("%s: fix unknown for %s approach %s", af.Fix, icao, ap.Code)
+				}
+			}
+			for _, af := range ap.IAFs {
+				checkFix(af)
+			}
+			for _, af := range ap.IFs {
+				checkFix(af)
+			}
+			checkFix(ap.FAF)
+		}
+	}
+
 }
 
 func (a *AirportInfoPane) Deactivate() {
@@ -391,6 +551,38 @@ func (a *AirportInfoPane) DrawUI() {
 	imgui.Checkbox("Show arriving aircraft", &a.ShowArrivals)
 	imgui.Checkbox("Show landed aircraft", &a.ShowLanded)
 	imgui.Checkbox("Show controllers", &a.ShowControllers)
+
+	imgui.Separator()
+	imgui.Text("Active approaches")
+
+	maxApproaches := 0
+	for _, ap := range a.approaches {
+		maxApproaches = max(maxApproaches, len(ap))
+	}
+
+	flags := imgui.TableFlagsBordersH | imgui.TableFlagsBordersOuterV | imgui.TableFlagsRowBg
+	if imgui.BeginTableV("##approaches", maxApproaches+1, flags, imgui.Vec2{}, 0.0) {
+		for _, icao := range SortedMapKeys(a.approaches) {
+			imgui.PushID(icao)
+			imgui.TableNextRow()
+			imgui.TableNextColumn()
+			imgui.Text(icao)
+
+			for _, ap := range a.approaches[icao] {
+				imgui.TableNextColumn()
+				_, active := a.activeApproaches[icao][ap.Code]
+				if imgui.Checkbox(ap.Code, &active) {
+					if active {
+						a.activeApproaches[icao][ap.Code] = nil
+					} else {
+						delete(a.activeApproaches[icao], ap.Code)
+					}
+				}
+			}
+			imgui.PopID()
+		}
+		imgui.EndTable()
+	}
 }
 
 type Arrival struct {
@@ -540,6 +732,41 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			}
 			str.WriteString("\n")
 		}
+	}
+
+	anyApproaches := false
+	for _, ap := range a.activeApproaches {
+		if len(ap) > 0 {
+			anyApproaches = true
+			break
+		}
+	}
+	if anyApproaches {
+		str.WriteString("Approaches:\n")
+		toPrint := make(map[string][]Approach)
+		maxType, maxIAFs, maxIFs := 0, 0, 0
+		for _, icao := range SortedMapKeys(a.activeApproaches) {
+			// Follow same order they are specified
+			for _, ap := range a.approaches[icao] {
+				if _, ok := a.activeApproaches[icao][ap.Code]; ok {
+					toPrint[icao] = append(toPrint[icao], ap)
+					maxType = max(maxType, len(ap.Type))
+					maxIAFs = max(maxIAFs, len(ap.IAFs.String()))
+					maxIFs = max(maxIFs, len(ap.IFs.String()))
+				}
+			}
+		}
+
+		for _, icao := range SortedMapKeys(toPrint) {
+			// Align...
+			for i, ap := range toPrint[icao] {
+				str.WriteString(fmt.Sprintf("\u200a\u200a\u200a  %4s ", Select(i == 0, icao, "")))
+				str.WriteString(fmt.Sprintf("%3s %3s %-*s%-*s%-*s %s\n", ap.Runway, ap.Code, maxType+1, ap.Type,
+					maxIAFs+1, ap.IAFs, maxIFs+1, ap.IFs, ApproachFixArray{ap.FAF}))
+			}
+		}
+
+		str.WriteString("\n")
 	}
 
 	if a.ShowATIS {
@@ -755,36 +982,6 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		str.WriteString("\n")
 	}
 
-	/*
-		writeWakeTurbulence := func(leader, follower *Aircraft) {
-			if leader == nil || follower == nil {
-				str.WriteString("       ")
-				return
-			}
-
-			if req, err := RECATAircraftDistance(leader, follower); err != nil {
-				str.WriteString("       ")
-				return
-			} else {
-				if req == 0 { // minimum radar separation
-					req = 3
-				}
-				d := nmdistance2ll(leader.Position(), follower.Position())
-				if d > 9.9 {
-					d = 9.9
-				}
-				if d < float32(req) {
-					flush()
-					style.Color = cs.TextHighlight
-					str.WriteString(fmt.Sprintf("%3.1f/%dnm", d, req))
-					flush()
-				} else {
-					str.WriteString(fmt.Sprintf("%3.1f/%dnm", d, req))
-				}
-			}
-		}
-	*/
-
 	// Filter out ones >100 nm from the airport
 	airborne = FilterSlice(airborne, func(ac *Aircraft) bool {
 		return nmdistance2ll(database.airports[ac.FlightPlan.DepartureAirport].Location, ac.Position()) < 100
@@ -959,6 +1156,65 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	}
 
 	cb.Call(a.cb)
+}
+
+func (a *AirportInfoPane) DrawScope(ctx *PaneContext, transforms ScopeTransformations, cb *CommandBuffer, font *Font) {
+	td := GetTextDrawBuilder()
+	defer ReturnTextDrawBuilder(td)
+	ld := GetLinesDrawBuilder()
+	defer ReturnLinesDrawBuilder(ld)
+
+	cs := positionConfig.GetColorScheme()
+	for _, icao := range SortedMapKeys(a.activeApproaches) {
+		// Follow same order they are specified
+		for _, ap := range a.approaches[icao] {
+			if _, ok := a.activeApproaches[icao][ap.Code]; ok {
+				faf, _ := database.Locate(ap.FAF.Fix)
+				iafs := MapSlice(ap.IAFs, func(a ApproachFix) Point2LL {
+					p, _ := database.Locate(a.Fix)
+					return p
+				})
+				ifs := MapSlice(ap.IFs, func(a ApproachFix) Point2LL {
+					p, _ := database.Locate(a.Fix)
+					return p
+				})
+
+				for _, p := range ifs {
+					ld.AddLine(faf, p)
+					for _, pp := range iafs {
+						ld.AddLine(p, pp)
+					}
+				}
+
+				addText := func(a ApproachFix) {
+					p, _ := database.Locate(a.Fix)
+					pw := transforms.WindowFromLatLongP(p)
+					pw = add2f(pw, a.DrawOffset)
+					if a.DrawOffset[0] < 0 {
+						// align with the right side of the text
+						w, _ := font.BoundText(a.String(), 0)
+						pw[0] -= float32(w)
+					}
+					td.AddText(a.String(), pw, TextStyle{Font: font, Color: cs.Fix})
+				}
+				addText(ap.FAF)
+				for _, a := range ap.IAFs {
+					addText(a)
+				}
+				for _, a := range ap.IFs {
+					addText(a)
+				}
+
+			}
+		}
+	}
+
+	cb.SetRGB(cs.Fix)
+	transforms.LoadLatLongViewingMatrices(cb)
+	ld.GenerateCommands(cb)
+	transforms.LoadWindowViewingMatrices(cb)
+	td.GenerateCommands(cb)
+
 }
 
 ///////////////////////////////////////////////////////////////////////////
