@@ -568,8 +568,18 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 			}
 			for _, tr := range transceiverStatus {
 				var freqs []Frequency
+				seen := make(map[Frequency]interface{})
 				for _, t := range tr.Transceivers {
-					freqs = append(freqs, NewFrequency(t.Frequency/1000000))
+					freq := Frequency(t.Frequency / 1000)
+					if _, ok := seen[freq]; !ok {
+						freqs = append(freqs, freq)
+						seen[freq] = nil
+					}
+				}
+
+				unicom := NewFrequency(122.800)
+				if _, ok := seen[unicom]; ok && len(freqs) > 1 {
+					delete(seen, unicom)
 				}
 				callsignFrequencies[tr.Callsign] = freqs
 			}
