@@ -39,6 +39,7 @@ var (
 		&PRDCommand{},
 		&FindCommand{},
 		&DrawRouteCommand{},
+		&FlagAircraftCommand{},
 		&InfoCommand{},
 	}
 )
@@ -319,6 +320,30 @@ func (*DrawRouteCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []
 			ac.FlightPlan.ArrivalAirport
 		positionConfig.drawnRouteEndTime = time.Now().Add(5 * time.Second)
 		return nil
+	}
+}
+
+type FlagAircraftCommand struct{}
+
+func (*FlagAircraftCommand) Names() []string                    { return []string{"f", "flag"} }
+func (*FlagAircraftCommand) Usage() string                      { return "" }
+func (*FlagAircraftCommand) TakesAircraft() bool                { return false }
+func (*FlagAircraftCommand) TakesController() bool              { return false }
+func (*FlagAircraftCommand) AdditionalArgs() (min int, max int) { return 1, 1 }
+func (*FlagAircraftCommand) Help() string {
+	return "Toggle whether an aircraft is flagged"
+}
+func (*FlagAircraftCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
+	name := strings.ToUpper(args[0])
+	aircraft := matchingAircraft(name)
+	if len(aircraft) == 1 {
+		positionConfig.ToggleFlagged(aircraft[0].Callsign)
+		return nil
+	} else if len(aircraft) > 1 {
+		callsigns := MapSlice(aircraft, func(a *Aircraft) string { return a.Callsign })
+		return ErrorStringConsoleEntry("Multiple aircraft match: " + strings.Join(callsigns, ", "))
+	} else {
+		return ErrorStringConsoleEntry("No matching aircraft")
 	}
 }
 

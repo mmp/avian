@@ -51,6 +51,7 @@ type PositionConfig struct {
 	DisplayRoot     *DisplayNode
 
 	selectedAircraft *Aircraft
+	flaggedAircraft  []string
 
 	highlightedLocation        Point2LL
 	highlightedLocationEndTime time.Time
@@ -427,4 +428,39 @@ func (pc *PositionConfig) Update() {
 			pc.selectedAircraft = sel.ac
 		}
 	}
+
+	// Cull out aircraft that have disconnected
+	pc.flaggedAircraft = FilterSlice(pc.flaggedAircraft, func(callsign string) bool {
+		return server.GetAircraft(callsign) != nil
+	})
+}
+
+func (pc *PositionConfig) IsFlagged(callsign string) bool {
+	return Find(pc.flaggedAircraft, callsign) != -1
+}
+
+func (pc *PositionConfig) ToggleFlagged(callsign string) {
+	if pc.IsFlagged(callsign) {
+		pc.flaggedAircraft = FilterSlice(pc.flaggedAircraft, func(cs string) bool {
+			return cs != callsign
+		})
+	} else {
+		pc.flaggedAircraft = append(pc.flaggedAircraft, callsign)
+	}
+}
+
+func (pc *PositionConfig) FlaggedIndex(callsign string) int {
+	return Find(pc.flaggedAircraft, callsign)
+}
+
+func (pc *PositionConfig) GetFlaggedSequence(drawn map[string]interface{}) map[string]int {
+	s := FilterSlice(pc.flaggedAircraft, func(callsign string) bool {
+		_, ok := drawn[callsign]
+		return ok
+	})
+	m := make(map[string]int)
+	for i, callsign := range s {
+		m[callsign] = i + 1
+	}
+	return m
 }

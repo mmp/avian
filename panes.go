@@ -291,8 +291,11 @@ type AirportInfoPane struct {
 
 	eventsId EventSubscriberId
 
-	sb         *ScrollBar
-	cb         CommandBuffer
+	sb *ScrollBar
+	cb CommandBuffer
+
+	flaggedSequence map[string]int
+
 	approaches map[string][]Approach
 	// airport -> code
 	activeApproaches map[string]map[string]interface{}
@@ -381,6 +384,10 @@ func (a *AirportInfoPane) Activate() {
 		server.AddAirportForWeather(ap)
 	}
 	a.eventsId = eventStream.Subscribe()
+
+	if a.flaggedSequence == nil {
+		a.flaggedSequence = make(map[string]int)
+	}
 
 	if a.approaches == nil {
 		a.approaches = make(map[string][]Approach)
@@ -655,28 +662,50 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 
 	cs := ctx.cs
 
-	var str strings.Builder
-	style := TextStyle{Font: a.font, Color: cs.Text}
+	basicStyle := TextStyle{Font: a.font, Color: cs.Text}
+	highlightStyle := TextStyle{Font: a.font, Color: cs.TextHighlight}
 	var strs []string
 	var styles []TextStyle
-	nLines := 1
+	nLines := 0
 	lineToCallsign := make(map[int]string)
+	drawnFlagged := make(map[string]interface{})
 
-	flush := func() {
-		if str.Len() == 0 {
-			return
+	isFlagged := false
+	startLine := func(callsign string) {
+		nLines++
+		isFlagged = positionConfig.IsFlagged(callsign)
+		if isFlagged {
+			drawnFlagged[callsign] = nil
 		}
-		s := str.String()
-		nLines += strings.Count(s, "\n")
-		strs = append(strs, s)
-		str.Reset()
+	}
+	addText := func(style TextStyle, f string, args ...interface{}) {
+		if isFlagged {
+			if time.Now().Second()%2 != 0 {
+				if style == highlightStyle {
+					style = basicStyle
+				} else {
+					style = highlightStyle
+				}
+			}
+		}
+		strs = append(strs, fmt.Sprintf(f, args...))
 		styles = append(styles, style)
-		style = TextStyle{Font: a.font, Color: cs.Text} // a reasonable default
+	}
+	endLine := func() {
+		strs = append(strs, "\n")
+		styles = append(styles, basicStyle)
+	}
+	emptyLine := func() {
+		startLine("")
+		endLine()
 	}
 
 	now := server.CurrentTime()
 	if a.ShowTime {
-		str.WriteString(now.UTC().Format("Time: 15:04:05Z\n\n"))
+		startLine("")
+		addText(basicStyle, now.UTC().Format("Time: 15:04:05Z"))
+		endLine()
+		emptyLine()
 	}
 
 	if a.ShowMETAR {
@@ -692,7 +721,9 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 				return metar[i].AirportICAO < metar[j].AirportICAO
 			})
 
-			str.WriteString("Weather:\n")
+			startLine("")
+			addText(basicStyle, "Weather:")
+			endLine()
 			for _, m := range metar {
 				atis := ""
 				if !a.ShowATIS {
@@ -704,21 +735,16 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 					}
 				}
 
-				str.WriteString(fmt.Sprintf("\u200a\u200a\u200a  %4s %s ", m.AirportICAO, atis))
-				flush()
-				//style.Color = cs.TextHighlight
-				str.WriteString(fmt.Sprintf("%s ", m.Altimeter))
-				flush()
+				startLine("")
+				addText(basicStyle, "\u200a\u200a\u200a  %4s %s ", m.AirportICAO, atis)
+				addText(basicStyle, "%s ", m.Altimeter)
 				if m.Auto {
-					str.WriteString("AUTO ")
-					flush()
+					addText(basicStyle, "AUTO ")
 				}
-				//style.Color = cs.TextHighlight
-				str.WriteString(fmt.Sprintf("%s ", m.Wind))
-				flush()
-				str.WriteString(fmt.Sprintf("%s\n", m.Weather))
+				addText(basicStyle, "%s %s", m.Wind, m.Weather)
+				endLine()
 			}
-			str.WriteString("\n")
+			emptyLine()
 		}
 	}
 
@@ -730,7 +756,10 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 	if anyApproaches {
-		str.WriteString("Approaches:\n")
+		startLine("")
+		addText(basicStyle, "Approaches:")
+		endLine()
+
 		toPrint := make(map[string][]Approach)
 		maxType, maxIAFs, maxIFs := 0, 0, 0
 		for _, icao := range SortedMapKeys(a.activeApproaches) {
@@ -748,13 +777,15 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		for _, icao := range SortedMapKeys(toPrint) {
 			// Align...
 			for i, ap := range toPrint[icao] {
-				str.WriteString(fmt.Sprintf("\u200a\u200a\u200a  %4s ", Select(i == 0, icao, "")))
-				str.WriteString(fmt.Sprintf("%3s %3s %-*s%-*s%-*s %s\n", ap.Runway, ap.Code, maxType+1, ap.Type,
-					maxIAFs+1, ap.IAFs, maxIFs+1, ap.IFs, ApproachFixArray{ap.FAF}))
+				startLine("")
+				addText(basicStyle, "\u200a\u200a\u200a  %4s ", Select(i == 0, icao, ""))
+				addText(basicStyle, "%3s %3s %-*s%-*s%-*s %s", ap.Runway, ap.Code, maxType+1, ap.Type,
+					maxIAFs+1, ap.IAFs, maxIFs+1, ap.IFs, ApproachFixArray{ap.FAF})
+				endLine()
 			}
 		}
 
-		str.WriteString("\n")
+		emptyLine()
 	}
 
 	if a.ShowATIS {
@@ -777,12 +808,16 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 		if len(atis) > 0 {
 			sort.Strings(atis)
-			str.WriteString("ATIS:\n")
+			startLine("")
+			addText(basicStyle, "ATIS:")
+			endLine()
+
 			for _, a := range atis {
-				str.WriteString("\u200a\u200a\u200a" + a)
-				str.WriteString("\n")
+				startLine("")
+				addText(basicStyle, "\u200a\u200a\u200a"+a)
+				endLine()
 			}
-			str.WriteString("\n")
+			emptyLine()
 		}
 	}
 
@@ -818,13 +853,20 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 
-	experienceIcon := func(ac *Aircraft) string {
-		if h := ac.HoursOnNetwork(false); h < 100 && h != 0 {
-			return "\u200a" + FontAwesomeIconBaby + "\u200a"
+	experienceIcon := func(ac *Aircraft) {
+		if positionConfig.IsFlagged(ac.Callsign) {
+			if idx, ok := a.flaggedSequence[ac.Callsign]; ok && idx < 10 {
+				addText(highlightStyle, "%d\u200a\u200a\u200a ", idx)
+			} else {
+				addText(highlightStyle, "\u200a\u200a\u200a+ ")
+			}
+		} else if h := ac.HoursOnNetwork(false); h < 100 && h != 0 {
+			addText(basicStyle, "\u200a"+FontAwesomeIconBaby+"\u200a ")
 		} else if h > 500 {
-			return FontAwesomeIconGlobeAmericas
+			addText(basicStyle, FontAwesomeIconGlobeAmericas+" ")
+		} else {
+			addText(basicStyle, " \u200a\u200a\u200a ")
 		}
-		return " \u200a\u200a\u200a"
 	}
 
 	rules := func(ac *Aircraft) string {
@@ -842,19 +884,15 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		}
 	}
 
-	checkSquawk := func(ac *Aircraft, str *strings.Builder) {
+	checkSquawk := func(ac *Aircraft) {
 		if ac.Mode != Charlie || ac.Squawk != ac.AssignedSquawk {
-			flush()
-			style.Color = cs.TextHighlight
-
-			str.WriteString(" sq:")
+			addText(highlightStyle, " sq:")
 			if ac.Mode != Charlie {
-				str.WriteString("[C]")
+				addText(highlightStyle, "[C]")
 			}
 			if ac.Squawk != ac.AssignedSquawk {
-				str.WriteString(ac.AssignedSquawk.String())
+				addText(highlightStyle, ac.AssignedSquawk.String())
 			}
-			flush()
 		}
 	}
 
@@ -874,42 +912,50 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 		found := false
 		for _, fr := range ac.TunedFrequencies {
 			if fr == 122800 {
-				str.WriteString("  UN")
+				addText(basicStyle, "  UN")
 				found = true
 			} else if ids, ok := frequencyToSectorId[fr]; ok {
 				for _, id := range ids {
-					str.WriteString(fmt.Sprintf("%4s", id))
+					addText(basicStyle, "%4s", id)
 				}
 				found = true
 			}
 		}
 		if !found {
-			str.WriteString("    ")
+			addText(basicStyle, "    ")
 		}
 	}
 
 	if a.ShowRandomOnFreq && len(randomOnFreq) > 0 {
-		str.WriteString("Randoms [" + a.ControllerFrequency.String() + "]:\n")
+		startLine("")
+		addText(basicStyle, "Randoms ["+a.ControllerFrequency.String()+"]:")
+		endLine()
+
 		sort.Slice(randomOnFreq, func(i, j int) bool {
 			return randomOnFreq[i].Callsign < randomOnFreq[j].Callsign
 		})
 		for _, ac := range randomOnFreq {
-			flush()
+			startLine(ac.Callsign)
 			lineToCallsign[nLines-1] = ac.Callsign
-			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s-%s", experience, ac.Callsign,
-				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport))
+
+			experienceIcon(ac)
+			addText(basicStyle, "%-8s %s %s-%s", ac.Callsign, rules(ac),
+				ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport)
+			endLine()
 		}
-		str.WriteString("\n")
+		emptyLine()
 	}
 
 	if a.ShowDepartures && len(departures) > 0 {
-		str.WriteString("Departures:\n")
+		startLine("")
+		addText(basicStyle, "Departures:")
+		endLine()
+
 		sort.Slice(departures, func(i, j int) bool {
 			return departures[i].Callsign < departures[j].Callsign
 		})
 		for _, ac := range departures {
-			flush()
+			startLine(ac.Callsign)
 			lineToCallsign[nLines-1] = ac.Callsign
 			route := ac.FlightPlan.Route
 			if len(route) > 19 {
@@ -951,25 +997,22 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 				}
 			}
 
-			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s ", experience, ac.Callsign,
-				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType))
+			experienceIcon(ac)
+			addText(basicStyle, "%-8s %s %s %8s ", ac.Callsign, rules(ac),
+				ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType)
 			if !validAltitude {
-				flush()
-				style.Color = cs.TextHighlight
-				str.WriteString(fmt.Sprintf("%6s", formatAltitude(ac.FlightPlan.Altitude)))
-				flush()
+				addText(highlightStyle, "%6s", formatAltitude(ac.FlightPlan.Altitude))
 			} else {
-				str.WriteString(fmt.Sprintf("%6s", formatAltitude(ac.FlightPlan.Altitude)))
+				addText(basicStyle, "%6s", formatAltitude(ac.FlightPlan.Altitude))
 			}
-			str.WriteString(fmt.Sprintf(" %-21s", route))
+			addText(basicStyle, " %-21s", route)
 
 			radioTuned(ac)
 			// Make sure the squawk is good
-			checkSquawk(ac, &str)
-			str.WriteString("\n")
+			checkSquawk(ac)
+			endLine()
 		}
-		str.WriteString("\n")
+		emptyLine()
 	}
 
 	// Filter out ones >100 nm from the airport
@@ -986,46 +1029,44 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			return di < dj
 		})
 
-		str.WriteString("Departed:\n")
+		startLine("")
+		addText(basicStyle, "Departed:")
+		endLine()
+
 		for _, ac := range airborne {
-			flush()
+			startLine(ac.Callsign)
 			lineToCallsign[nLines-1] = ac.Callsign
+
 			route := ac.FlightPlan.Route
 			if len(route) > 12 {
 				route = route[:12]
 				route += ".."
 			}
 
-			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %6s %6s", experience, ac.Callsign,
-				rules(ac), ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
-				formatAltitude(ac.Altitude()), formatAltitude(ac.FlightPlan.Altitude)))
-
-			/*
-				if i+1 < len(airborne) {
-					writeWakeTurbulence(airborne[i+1], ac)
-				} else {
-					writeWakeTurbulence(nil, ac)
-				}
-			*/
-			str.WriteString(fmt.Sprintf(" %14s", route))
+			experienceIcon(ac)
+			addText(basicStyle, "%-8s %s %s %8s %6s %6s %14s", ac.Callsign, rules(ac),
+				ac.FlightPlan.DepartureAirport, ac.FlightPlan.AircraftType,
+				formatAltitude(ac.Altitude()), formatAltitude(ac.FlightPlan.Altitude), route)
 			radioTuned(ac)
-			checkSquawk(ac, &str)
-			str.WriteString("\n")
+			checkSquawk(ac)
+			endLine()
 		}
-		str.WriteString("\n")
+		emptyLine()
 	}
 
 	arrivals := getDistanceSortedArrivals(a.Airports)
 	if a.ShowArrivals && len(arrivals) > 0 {
-		str.WriteString("Arrivals:\n")
+		startLine("")
+		addText(basicStyle, "Arrivals:")
+		endLine()
+
 		for _, arr := range arrivals {
 			if arr.distance > 1000 {
 				break
 			}
 
 			ac := arr.aircraft
-			flush()
+			startLine(ac.Callsign)
 			lineToCallsign[nLines-1] = ac.Callsign
 			alt := ac.Altitude()
 			alt = (alt + 50) / 100 * 100
@@ -1037,51 +1078,48 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 				star = star[len(star)-7:]
 			}
 
-			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %s %8s %6s %6s %4dnm ", experience, ac.Callsign,
-				rules(ac), ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType,
-				formatAltitude(ac.TempAltitude), formatAltitude(ac.Altitude()), int(arr.distance)))
-
-			/*
-				if i > 0 {
-					writeWakeTurbulence(arrivals[i-1].aircraft, arrivals[i].aircraft)
-				} else {
-					writeWakeTurbulence(nil, nil)
-				}
-			*/
-
-			str.WriteString(fmt.Sprintf("%7s", star))
+			experienceIcon(ac)
+			addText(basicStyle, "%-8s %s %s %8s %6s %6s %4dnm %7s", ac.Callsign, rules(ac),
+				ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType,
+				formatAltitude(ac.TempAltitude), formatAltitude(ac.Altitude()), int(arr.distance), star)
 			radioTuned(ac)
-			checkSquawk(ac, &str)
-			str.WriteString("\n")
+			checkSquawk(ac)
+			endLine()
 
 			if _, ok := a.seenArrivals[ac.Callsign]; !ok {
 				globalConfig.AudioSettings.HandleEvent(AudioEventNewArrival)
 				a.seenArrivals[ac.Callsign] = nil
 			}
 		}
-		str.WriteString("\n")
+		emptyLine()
 	}
 
 	if a.ShowLanded && len(landed) > 0 {
-		str.WriteString("Landed:\n")
+		startLine("")
+		addText(basicStyle, "Landed:")
+		endLine()
+
 		sort.Slice(landed, func(i, j int) bool {
 			return landed[i].Callsign < landed[j].Callsign
 		})
 		for _, ac := range landed {
-			flush()
+			startLine(ac.Callsign)
 			lineToCallsign[nLines-1] = ac.Callsign
-			experience := experienceIcon(ac)
-			str.WriteString(fmt.Sprintf("%s %-8s %s %8s", experience, ac.Callsign,
-				ac.FlightPlan.ArrivalAirport, ac.FlightPlan.AircraftType))
+
+			experienceIcon(ac)
+			addText(basicStyle, "%-8s %s %8s", ac.Callsign, ac.FlightPlan.ArrivalAirport,
+				ac.FlightPlan.AircraftType)
 			radioTuned(ac)
-			str.WriteString("\n")
+			endLine()
 		}
-		str.WriteString("\n")
+		emptyLine()
 	}
 
 	if a.ShowControllers && len(controllers) > 0 {
-		str.WriteString("Controllers:\n")
+		startLine("")
+		addText(basicStyle, "Controllers:")
+		endLine()
+
 		sort.Slice(controllers, func(i, j int) bool { return controllers[i].Callsign < controllers[j].Callsign })
 
 		for _, suffix := range []string{"CTR", "APP", "DEP", "TWR", "GND", "DEL", "FSS", "ATIS", "OBS"} {
@@ -1095,33 +1133,27 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 					continue
 				}
 
+				startLine("")
 				if first {
-					str.WriteString(fmt.Sprintf("  %-4s  ", suffix))
+					addText(basicStyle, "  %-4s  ", suffix)
 					first = false
 				} else {
-					str.WriteString("        ")
+					addText(basicStyle, "        ")
 				}
 
-				if ctrl.RequestRelief {
-					flush()
-					style.Color = cs.TextHighlight
-				}
-
-				str.WriteString(fmt.Sprintf(" %-12s %s", ctrl.Callsign, ctrl.Frequency))
-
-				if ctrl.RequestRelief {
-					flush()
-				}
+				style := Select(ctrl.RequestRelief, highlightStyle, basicStyle)
+				addText(style, " %-12s %s", ctrl.Callsign, ctrl.Frequency)
 
 				if pos := ctrl.GetPosition(); pos != nil {
-					str.WriteString(fmt.Sprintf(" %-3s %s", pos.SectorId, pos.Scope))
+					addText(basicStyle, " %-3s %s", pos.SectorId, pos.Scope)
 				}
-				str.WriteString("\n")
+				endLine()
 			}
 		}
 	}
 
-	flush()
+	// Figure out the actual sequence numbers to use for flagged aircraft next time around
+	a.flaggedSequence = positionConfig.GetFlaggedSequence(drawnFlagged)
 
 	nVisibleLines := (int(ctx.paneExtent.Height()) - a.font.size) / a.font.size
 	a.sb.Update(nLines, nVisibleLines, ctx)
@@ -1141,11 +1173,16 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	a.sb.Draw(ctx, &a.cb)
 
 	// Handle aircraft selection
-	if ctx.mouse != nil && ctx.mouse.Clicked[MouseButtonPrimary] {
+	if ctx.mouse != nil {
 		y := int(texty - 1 - ctx.mouse.Pos[1])
 		line := int(y) / a.font.size
 		if callsign, ok := lineToCallsign[line]; ok {
-			positionConfig.selectedAircraft = server.GetAircraft(callsign)
+			if ctx.mouse.Clicked[MouseButtonPrimary] {
+				positionConfig.selectedAircraft = server.GetAircraft(callsign)
+			}
+			if ctx.mouse.Clicked[MouseButtonSecondary] {
+				positionConfig.ToggleFlagged(callsign)
+			}
 		}
 	}
 
