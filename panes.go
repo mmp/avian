@@ -299,6 +299,7 @@ type AirportInfoPane struct {
 	approaches map[string][]Approach
 	// airport -> code
 	activeApproaches map[string]map[string]interface{}
+	drawnApproaches  map[string]map[string]interface{}
 }
 
 type ApproachFix struct {
@@ -395,9 +396,11 @@ func (a *AirportInfoPane) Activate() {
 	if a.approaches == nil {
 		a.approaches = make(map[string][]Approach)
 		a.activeApproaches = make(map[string]map[string]interface{})
+		a.drawnApproaches = make(map[string]map[string]interface{})
 
 		// Hardcoded, but yolo...
 		a.activeApproaches["KJFK"] = make(map[string]interface{})
+		a.drawnApproaches["KJFK"] = make(map[string]interface{})
 		a.approaches["KJFK"] = []Approach{
 			Approach{Runway: "4R", Type: "ILS", Code: "I4R",
 				IFs: []ApproachFix{ApproachFix{Fix: "ZETAL", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
@@ -428,6 +431,7 @@ func (a *AirportInfoPane) Activate() {
 				FAF: ApproachFix{Fix: "MEALS", Altitude: 1800, DrawOffset: [2]float32{-5, 5}}},
 		}
 		a.activeApproaches["KFRG"] = make(map[string]interface{})
+		a.drawnApproaches["KFRG"] = make(map[string]interface{})
 		a.approaches["KFRG"] = []Approach{
 			Approach{Runway: "1", Type: "RNAV", Code: "R1",
 				IAFs: []ApproachFix{ApproachFix{Fix: "ZACHS", Altitude: 2000, DrawOffset: [2]float32{-5, 5}},
@@ -453,6 +457,7 @@ func (a *AirportInfoPane) Activate() {
 				FAF: ApproachFix{Fix: "ALFED", Altitude: 1400, DrawOffset: [2]float32{10, 5}}},
 		}
 		a.activeApproaches["KISP"] = make(map[string]interface{})
+		a.drawnApproaches["KISP"] = make(map[string]interface{})
 		a.approaches["KISP"] = []Approach{
 			Approach{Runway: "6", Type: "ILS", Code: "I6",
 				IFs: []ApproachFix{ApproachFix{Fix: "YOSUR", Altitude: 1600, PT: true}},
@@ -476,6 +481,7 @@ func (a *AirportInfoPane) Activate() {
 				FAF: ApproachFix{Fix: "JATEV", Altitude: 1500, DrawOffset: [2]float32{5, 10}}},
 		}
 		a.activeApproaches["KHVN"] = make(map[string]interface{})
+		a.drawnApproaches["KHVN"] = make(map[string]interface{})
 		a.approaches["KHVN"] = []Approach{
 			Approach{Runway: "2", Type: "ILS", Code: "I2",
 				IAFs: []ApproachFix{ApproachFix{Fix: "CCC", Altitude: 1800, NoPT: true}},
@@ -494,6 +500,7 @@ func (a *AirportInfoPane) Activate() {
 				FAF: ApproachFix{Fix: "ELLVS", Altitude: 1700}},
 		}
 		a.activeApproaches["KBDR"] = make(map[string]interface{})
+		a.drawnApproaches["KBDR"] = make(map[string]interface{})
 		a.approaches["KBDR"] = []Approach{
 			Approach{Runway: "24", Type: "RNAV", Code: "R24",
 				IFs: []ApproachFix{ApproachFix{Fix: "DWAIN", Altitude: 2600, PT: true, DrawOffset: [2]float32{5, 5}}},
@@ -510,6 +517,7 @@ func (a *AirportInfoPane) Activate() {
 				IFs: []ApproachFix{ApproachFix{Fix: "DABVE", Altitude: 2000, DrawOffset: [2]float32{5, 0}}},
 				FAF: ApproachFix{Fix: "STANE", Altitude: 1800, DrawOffset: [2]float32{5, 0}}}}
 		a.activeApproaches["KFOK"] = make(map[string]interface{})
+		a.drawnApproaches["KFOK"] = make(map[string]interface{})
 		a.approaches["KFOK"] = []Approach{
 			Approach{Runway: "24", Type: "ILS", Code: "I24",
 				IAFs: []ApproachFix{ApproachFix{Fix: "HTO", Altitude: 2700, DrawOffset: [2]float32{5, 5}}},
@@ -523,6 +531,7 @@ func (a *AirportInfoPane) Activate() {
 				IFs: []ApproachFix{ApproachFix{Fix: "ZATBO", Altitude: 2600, PT: true, DrawOffset: [2]float32{5, 5}}},
 				FAF: ApproachFix{Fix: "TAZZY", Altitude: 1700, DrawOffset: [2]float32{5, 5}}}}
 		a.activeApproaches["KOXC"] = make(map[string]interface{})
+		a.drawnApproaches["KOXC"] = make(map[string]interface{})
 		a.approaches["KOXC"] = []Approach{
 			Approach{Runway: "18", Type: "RNAV", Code: "R18",
 				IAFs: []ApproachFix{ApproachFix{Fix: "MOONI", Altitude: 3000, NoPT: true, DrawOffset: [2]float32{-5, 5}},
@@ -539,6 +548,7 @@ func (a *AirportInfoPane) Activate() {
 				IFs: []ApproachFix{ApproachFix{Fix: "CUTMA", Altitude: 2500, PT: true, DrawOffset: [2]float32{5, 15}}},
 				FAF: ApproachFix{Fix: "DAAVY", Altitude: 2500, DrawOffset: [2]float32{10, 5}}}}
 		a.activeApproaches["KJPX"] = make(map[string]interface{})
+		a.drawnApproaches["KJPX"] = make(map[string]interface{})
 		a.approaches["KJPX"] = []Approach{
 			Approach{Runway: "10", Type: "RNAV Z", Code: "R10",
 				IFs: []ApproachFix{ApproachFix{Fix: "MATHW", Altitude: 1800, PT: true, DrawOffset: [2]float32{5, 15}}},
@@ -728,6 +738,7 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	var styles []TextStyle
 	nLines := 0
 	lineToCallsign := make(map[int]string)
+	lineToApproach := make(map[int][2]string)
 	drawnFlagged := make(map[string]interface{})
 
 	isFlagged := false
@@ -838,9 +849,15 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 			// Align...
 			for i, ap := range toPrint[icao] {
 				startLine("")
-				addText(basicStyle, "\u200a\u200a\u200a  %4s ", Select(i == 0, icao, ""))
-				addText(basicStyle, "%3s %3s %-*s%-*s%-*s %s", ap.Runway, ap.Code, maxType+1, ap.Type,
-					maxIAFs+1, ap.IAFs, maxIFs+1, ap.IFs, ApproachFixArray{ap.FAF})
+				lineToApproach[nLines-1] = [2]string{icao, ap.Code}
+				addText(basicStyle, "\u200a\u200a\u200a  %4s %3s ", Select(i == 0, icao, ""), ap.Runway)
+				if _, ok := a.drawnApproaches[icao][ap.Code]; ok {
+					addText(highlightStyle, "%3s ", ap.Code)
+				} else {
+					addText(basicStyle, "%3s ", ap.Code)
+				}
+				addText(basicStyle, "%-*s%-*s%-*s %s", maxType+1, ap.Type, maxIAFs+1, ap.IAFs,
+					maxIFs+1, ap.IFs, ApproachFixArray{ap.FAF})
 				endLine()
 			}
 		}
@@ -1236,7 +1253,15 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 	if ctx.mouse != nil {
 		y := int(texty - 1 - ctx.mouse.Pos[1])
 		line := int(y) / a.font.size
-		if callsign, ok := lineToCallsign[line]; ok {
+		if appr, ok := lineToApproach[line]; ok {
+			if ctx.mouse.Clicked[MouseButtonPrimary] {
+				if _, ok := a.drawnApproaches[appr[0]][appr[1]]; ok {
+					delete(a.drawnApproaches[appr[0]], appr[1])
+				} else {
+					a.drawnApproaches[appr[0]][appr[1]] = nil
+				}
+			}
+		} else if callsign, ok := lineToCallsign[line]; ok {
 			if ctx.mouse.Clicked[MouseButtonPrimary] {
 				positionConfig.selectedAircraft = server.GetAircraft(callsign)
 			}
@@ -1256,10 +1281,17 @@ func (a *AirportInfoPane) DrawScope(ctx *PaneContext, transforms ScopeTransforma
 	defer ReturnLinesDrawBuilder(ld)
 
 	cs := positionConfig.GetColorScheme()
-	for _, icao := range SortedMapKeys(a.activeApproaches) {
+	for _, icao := range SortedMapKeys(a.drawnApproaches) {
+		aploc, _ := database.Locate(icao)
+
 		// Follow same order they are specified
 		for _, ap := range a.approaches[icao] {
-			if _, ok := a.activeApproaches[icao][ap.Code]; ok {
+			if _, ok := a.drawnApproaches[icao][ap.Code]; ok {
+				if _, ok := a.activeApproaches[icao][ap.Code]; !ok {
+					// don't draw it if it was removed from the active set
+					continue
+				}
+
 				faf, _ := database.Locate(ap.FAF.Fix)
 				iafs := MapSlice(ap.IAFs, func(a ApproachFix) Point2LL {
 					p, _ := database.Locate(a.Fix)
@@ -1270,6 +1302,7 @@ func (a *AirportInfoPane) DrawScope(ctx *PaneContext, transforms ScopeTransforma
 					return p
 				})
 
+				ld.AddLine(aploc, faf)
 				for _, p := range ifs {
 					ld.AddLine(faf, p)
 					for _, pp := range iafs {
