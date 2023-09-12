@@ -1013,8 +1013,8 @@ func (cli *CLIPane) runCommand(cmd string) []*ConsoleEntry {
 	if cmd := lookupCommand(fields[0]); cmd != nil {
 		args := fields[1:]
 
-		if cmd.TakesAircraft() && positionConfig.selectedAircraft == nil {
-			return ErrorStringConsoleEntry(fields[0] + ": an aircraft must be selected to run this command")
+		if cmd.TakesAircraft() && positionConfig.selectedAircraft == nil && len(args) == 0 {
+			return ErrorStringConsoleEntry(fields[0] + ": an aircraft must be selected or arguments must be given")
 		}
 		var ctrl *Controller
 		if cmd.TakesController() {

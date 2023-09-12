@@ -83,16 +83,27 @@ func (*NYPRDCommand) Names() []string                    { return []string{"nypr
 func (*NYPRDCommand) Usage() string                      { return "" }
 func (*NYPRDCommand) TakesAircraft() bool                { return true }
 func (*NYPRDCommand) TakesController() bool              { return false }
-func (*NYPRDCommand) AdditionalArgs() (min int, max int) { return 0, 0 }
+func (*NYPRDCommand) AdditionalArgs() (min int, max int) { return 0, 2 }
 func (*NYPRDCommand) Help() string {
 	return "Looks up the aircraft's route in the ZNY preferred route database."
 }
 func (*NYPRDCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	if ac.FlightPlan == nil {
-		return ErrorConsoleEntry(ErrNoFlightPlan)
+	var depart, arrive string
+	if len(args) > 0 {
+		if len(args) == 2 {
+			depart, arrive = args[0], args[1]
+		} else {
+			return ErrorStringConsoleEntry("nyprd: expected two airports")
+		}
+	} else if ac != nil {
+		if ac.FlightPlan == nil {
+			return ErrorConsoleEntry(ErrNoFlightPlan)
+		}
+		depart, arrive = ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport
+	} else {
+		return ErrorStringConsoleEntry("nyprd: must select an aircraft or provide two airports")
 	}
 
-	depart, arrive := ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport
 	url := fmt.Sprintf("https://nyartcc.org/prd/search?depart=%s&arrive=%s", depart, arrive)
 
 	resp, err := http.Get(url)
@@ -179,11 +190,21 @@ func (*PRDCommand) Help() string {
 	return "Looks up the aircraft's route in the FAA preferred route database."
 }
 func (*PRDCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
-	if ac.FlightPlan == nil {
-		return ErrorConsoleEntry(ErrNoFlightPlan)
+	var depart, arrive string
+	if len(args) > 0 {
+		if len(args) == 2 {
+			depart, arrive = args[0], args[1]
+		} else {
+			return ErrorStringConsoleEntry("nyprd: expected two airports")
+		}
+	} else if ac != nil {
+		if ac.FlightPlan == nil {
+			return ErrorConsoleEntry(ErrNoFlightPlan)
+		}
+
+		depart, arrive = ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport
 	}
 
-	depart, arrive := ac.FlightPlan.DepartureAirport, ac.FlightPlan.ArrivalAirport
 	if len(depart) == 4 && depart[0] == 'K' {
 		depart = depart[1:]
 	}
@@ -287,6 +308,10 @@ func (*DrawRouteCommand) Help() string {
 	return "Draws the route of the specified aircraft in any radar scopes in which it is visible."
 }
 func (*DrawRouteCommand) Run(cmd string, ac *Aircraft, ctrl *Controller, args []string, cli *CLIPane) []*ConsoleEntry {
+	if ac == nil {
+		return ErrorStringConsoleEntry("drawroute: must select aircraft")
+	}
+
 	if ac.FlightPlan == nil {
 		return ErrorConsoleEntry(ErrNoFlightPlan)
 	} else {
