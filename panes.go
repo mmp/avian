@@ -304,7 +304,7 @@ type AirportInfoPane struct {
 type ApproachFix struct {
 	Fix        string
 	Altitude   int
-	PT         bool
+	PT, NoPT   bool
 	DrawOffset [2]float32
 }
 
@@ -313,6 +313,9 @@ func (a ApproachFix) String() string {
 	s += fmt.Sprintf("-%d", a.Altitude/100)
 	if a.PT {
 		s += " PT"
+	}
+	if a.NoPT {
+		s += " NoPT"
 	}
 	return s
 }
@@ -475,11 +478,13 @@ func (a *AirportInfoPane) Activate() {
 		a.activeApproaches["KHVN"] = make(map[string]interface{})
 		a.approaches["KHVN"] = []Approach{
 			Approach{Runway: "2", Type: "ILS", Code: "I2",
-				IFs: []ApproachFix{ApproachFix{Fix: "SALLT", Altitude: 1500, PT: true}},
+				IAFs: []ApproachFix{ApproachFix{Fix: "CCC", Altitude: 1800, NoPT: true}},
+				IFs: []ApproachFix{ApproachFix{Fix: "SALLT", Altitude: 1500, PT: true},
+					ApproachFix{Fix: "PEPER", Altitude: 1500}},
 				FAF: ApproachFix{Fix: "SALLT", Altitude: 1500}},
 			Approach{Runway: "2", Type: "RNAV", Code: "R2",
 				IAFs: []ApproachFix{ApproachFix{Fix: "NESSI", Altitude: 1800, DrawOffset: [2]float32{-5, 5}},
-					ApproachFix{Fix: "KEYED", Altitude: 1800, DrawOffset: [2]float32{5, 5}}},
+					ApproachFix{Fix: "KEYED", Altitude: 1800, NoPT: true, DrawOffset: [2]float32{5, 5}}},
 				IFs: []ApproachFix{ApproachFix{Fix: "PEPER", Altitude: 1800, PT: true, DrawOffset: [2]float32{-5, -5}}},
 				FAF: ApproachFix{Fix: "SALLT", Altitude: 1500, DrawOffset: [2]float32{5, 5}}},
 			Approach{Runway: "20", Type: "RNAV", Code: "R20",
@@ -488,6 +493,61 @@ func (a *AirportInfoPane) Activate() {
 				IFs: []ApproachFix{ApproachFix{Fix: "GUUMP", Altitude: 2600, DrawOffset: [2]float32{5, 0}}},
 				FAF: ApproachFix{Fix: "ELLVS", Altitude: 1700}},
 		}
+		a.activeApproaches["KBDR"] = make(map[string]interface{})
+		a.approaches["KBDR"] = []Approach{
+			Approach{Runway: "24", Type: "RNAV", Code: "R24",
+				IFs: []ApproachFix{ApproachFix{Fix: "DWAIN", Altitude: 2600, PT: true, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "MILUM", Altitude: 1800, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "29", Type: "RNAV", Code: "R29",
+				IAFs: []ApproachFix{ApproachFix{Fix: "CCC", Altitude: 2000, DrawOffset: [2]float32{5, 5}},
+					ApproachFix{Fix: "MAD", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "MADDG", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "SETHE", Altitude: 1500, DrawOffset: [2]float32{5, 15}}},
+			Approach{Runway: "6", Type: "ILS", Code: "I6",
+				IAFs: []ApproachFix{ApproachFix{Fix: "STANE", Altitude: 1800, PT: true, DrawOffset: [2]float32{5, 5}}},
+				FAF:  ApproachFix{Fix: "STANE", Altitude: 1800, DrawOffset: [2]float32{5, 5}}},
+			Approach{Runway: "6", Type: "RNAV", Code: "R6",
+				IFs: []ApproachFix{ApproachFix{Fix: "DABVE", Altitude: 2000, DrawOffset: [2]float32{5, 0}}},
+				FAF: ApproachFix{Fix: "STANE", Altitude: 1800, DrawOffset: [2]float32{5, 0}}}}
+		a.activeApproaches["KFOK"] = make(map[string]interface{})
+		a.approaches["KFOK"] = []Approach{
+			Approach{Runway: "24", Type: "ILS", Code: "I24",
+				IAFs: []ApproachFix{ApproachFix{Fix: "HTO", Altitude: 2700, DrawOffset: [2]float32{5, 5}}},
+				IFs:  []ApproachFix{ApproachFix{Fix: "MATTY", Altitude: 2700, DrawOffset: [2]float32{5, 15}}},
+				FAF:  ApproachFix{Fix: "SPREE", Altitude: 1500, DrawOffset: [2]float32{10, 5}}},
+			Approach{Runway: "24", Type: "RNAV", Code: "R24",
+				IAFs: []ApproachFix{ApproachFix{Fix: "HTO", Altitude: 2000, NoPT: true, DrawOffset: [2]float32{5, 5}}},
+				IFs:  []ApproachFix{ApproachFix{Fix: "MATTY", Altitude: 2000, PT: true, DrawOffset: [2]float32{5, 15}}},
+				FAF:  ApproachFix{Fix: "HAGIK", Altitude: 1500, DrawOffset: [2]float32{10, 5}}},
+			Approach{Runway: "24", Type: "RNAV", Code: "R6",
+				IFs: []ApproachFix{ApproachFix{Fix: "ZATBO", Altitude: 2600, PT: true, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "TAZZY", Altitude: 1700, DrawOffset: [2]float32{5, 5}}}}
+		a.activeApproaches["KOXC"] = make(map[string]interface{})
+		a.approaches["KOXC"] = []Approach{
+			Approach{Runway: "18", Type: "RNAV", Code: "R18",
+				IAFs: []ApproachFix{ApproachFix{Fix: "MOONI", Altitude: 3000, NoPT: true, DrawOffset: [2]float32{-5, 5}},
+					ApproachFix{Fix: "BISCO", Altitude: 3000, NoPT: true, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "WEXNO", Altitude: 3000, PT: true, DrawOffset: [2]float32{5, 15}}},
+				FAF: ApproachFix{Fix: "ARQEB", Altitude: 2200, DrawOffset: [2]float32{10, 5}}},
+			Approach{Runway: "36", Type: "ILS", Code: "I36",
+				IAFs: []ApproachFix{ApproachFix{Fix: "BDR", Altitude: 2500, DrawOffset: [2]float32{10, 5}}},
+				IFs:  []ApproachFix{ApproachFix{Fix: "CUTMA", Altitude: 2500, DrawOffset: [2]float32{5, 15}}},
+				FAF:  ApproachFix{Fix: "DAAVY", Altitude: 2500, DrawOffset: [2]float32{10, 5}}},
+			Approach{Runway: "36", Type: "RNAV", Code: "R36",
+				IAFs: []ApproachFix{ApproachFix{Fix: "BDR", Altitude: 2500, NoPT: true, DrawOffset: [2]float32{5, 5}},
+					ApproachFix{Fix: "MUVGE", Altitude: 2500, NoPT: true, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "CUTMA", Altitude: 2500, PT: true, DrawOffset: [2]float32{5, 15}}},
+				FAF: ApproachFix{Fix: "DAAVY", Altitude: 2500, DrawOffset: [2]float32{10, 5}}}}
+		a.activeApproaches["KJPX"] = make(map[string]interface{})
+		a.approaches["KJPX"] = []Approach{
+			Approach{Runway: "10", Type: "RNAV Z", Code: "R10",
+				IFs: []ApproachFix{ApproachFix{Fix: "MATHW", Altitude: 1800, PT: true, DrawOffset: [2]float32{5, 15}}},
+				FAF: ApproachFix{Fix: "GOODI", Altitude: 1800, DrawOffset: [2]float32{10, 5}}},
+			Approach{Runway: "28", Type: "RNAV Z", Code: "R28",
+				IAFs: []ApproachFix{ApproachFix{Fix: "JORDN", Altitude: 2000, DrawOffset: [2]float32{5, 15}},
+					ApproachFix{Fix: "SEFRD", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				IFs: []ApproachFix{ApproachFix{Fix: "BIGGA", Altitude: 2000, DrawOffset: [2]float32{5, 5}}},
+				FAF: ApproachFix{Fix: "FEAST", Altitude: 1900, DrawOffset: [2]float32{10, 15}}}}
 	}
 
 	// Check fixes are valid
