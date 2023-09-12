@@ -626,7 +626,7 @@ func (a *AirportInfoPane) DrawUI() {
 			for _, ap := range a.approaches[icao] {
 				imgui.TableNextColumn()
 				_, active := a.activeApproaches[icao][ap.Code]
-				if imgui.Checkbox(ap.Code, &active) {
+				if imgui.Checkbox(ap.Type+" "+ap.Runway, &active) {
 					if active {
 						a.activeApproaches[icao][ap.Code] = nil
 					} else {
