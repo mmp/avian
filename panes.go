@@ -519,7 +519,7 @@ func (a *AirportInfoPane) Activate() {
 				IAFs: []ApproachFix{ApproachFix{Fix: "HTO", Altitude: 2000, NoPT: true, DrawOffset: [2]float32{5, 5}}},
 				IFs:  []ApproachFix{ApproachFix{Fix: "MATTY", Altitude: 2000, PT: true, DrawOffset: [2]float32{5, 15}}},
 				FAF:  ApproachFix{Fix: "HAGIK", Altitude: 1500, DrawOffset: [2]float32{10, 5}}},
-			Approach{Runway: "24", Type: "RNAV", Code: "R6",
+			Approach{Runway: "6", Type: "RNAV", Code: "R6",
 				IFs: []ApproachFix{ApproachFix{Fix: "ZATBO", Altitude: 2600, PT: true, DrawOffset: [2]float32{5, 5}}},
 				FAF: ApproachFix{Fix: "TAZZY", Altitude: 1700, DrawOffset: [2]float32{5, 5}}}}
 		a.activeApproaches["KOXC"] = make(map[string]interface{})
