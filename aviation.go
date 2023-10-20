@@ -691,7 +691,9 @@ func EstimatedFutureDistance(a *Aircraft, b *Aircraft, seconds float32) float32 
 
 func ParseAltitude(s string) (int, error) {
 	s = strings.ToUpper(s)
-	if s == "VFR" {
+	if s == "" {
+		return 0, nil
+	} else if s == "VFR" {
 		return 0, nil
 	} else if strings.HasPrefix(s, "VFR/") {
 		if alt, err := strconv.Atoi(s[4:]); err != nil {
