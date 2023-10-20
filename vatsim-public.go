@@ -613,7 +613,7 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 					lg.Errorf("%s: bogus altitude %s: %v", p.Callsign, p.FlightPlan.Altitude, err)
 				}
 
-				if p.FlightPlan.Rules == "I" {
+				if p.FlightPlan.Rules == "I" && !strings.HasPrefix(p.FlightPlan.Altitude, "VFR/") {
 					fp.Rules = IFR
 				} else {
 					fp.Rules = VFR
