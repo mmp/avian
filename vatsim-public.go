@@ -669,6 +669,7 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 					ScopeRange: c.Range,
 					Rating:     NetworkRating(c.Rating),
 					Facility:   Facility(c.Facility),
+					Logon:      c.Logon,
 				}
 
 				if fr, err := strconv.ParseFloat(c.Frequency, 32); err == nil {

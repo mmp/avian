@@ -155,6 +155,7 @@ type Controller struct {
 	Facility      Facility
 	Location      Point2LL
 	RequestRelief bool
+	Logon         time.Time
 }
 
 func (c *Controller) GetPosition() *Position {

@@ -1222,8 +1222,13 @@ func (a *AirportInfoPane) Draw(ctx *PaneContext, cb *CommandBuffer) {
 				addText(style, " %-12s %s", ctrl.Callsign, ctrl.Frequency)
 
 				if pos := ctrl.GetPosition(); pos != nil {
-					addText(basicStyle, " %-3s %s", pos.SectorId, pos.Scope)
+					addText(basicStyle, " %-3s %s ", pos.SectorId, pos.Scope)
+				} else {
+					addText(basicStyle, "       ")
 				}
+				min := int(time.Since(ctrl.Logon).Round(time.Minute).Minutes())
+				addText(basicStyle, "%02d:%02d", min/60, min%60)
+
 				endLine()
 			}
 		}
