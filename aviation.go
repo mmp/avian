@@ -693,9 +693,9 @@ func ParseAltitude(s string) (int, error) {
 	s = strings.ToUpper(s)
 	if s == "" {
 		return 0, nil
-	} else if s == "VFR" {
+	} else if s == "VFR" || s == "VFF" {
 		return 0, nil
-	} else if strings.HasPrefix(s, "VFR/") {
+	} else if strings.HasPrefix(s, "VFR/") || strings.HasPrefix(s, "VFF/") {
 		if alt, err := strconv.Atoi(s[4:]); err != nil {
 			return 0, err
 		} else {

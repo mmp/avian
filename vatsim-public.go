@@ -480,6 +480,8 @@ type VATSIMDataResponse struct {
 	} `json:"atis"`
 }
 
+var altitudeSyntaxErrors map[string]interface{} = make(map[string]interface{})
+
 // The implementation below has multiple assumptions that an update request
 // is sent every 15 seconds or so.
 func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
@@ -570,7 +572,7 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 				var freqs []Frequency
 				seen := make(map[Frequency]interface{})
 				for _, t := range tr.Transceivers {
-					freq := Frequency(t.Frequency / 1000)
+					freq := Frequency(t.Frequency/1000 + 0.5)
 					if _, ok := seen[freq]; !ok {
 						freqs = append(freqs, freq)
 						seen[freq] = nil
@@ -585,6 +587,10 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 			}
 
 			text, err := FetchURL(dataURL)
+			//text, err := os.ReadFile("/Users/mmp/avian/vatsim-data.json")
+			if err != nil {
+				panic(err)
+			}
 
 			var vsd VATSIMDataResponse
 			if err := json.Unmarshal(text, &vsd); err != nil {
@@ -610,7 +616,10 @@ func (vp *VATSIMPublicServer) fetchVATSIMPublicAsync() {
 
 				fp.Altitude, err = ParseAltitude(p.FlightPlan.Altitude)
 				if p.FlightPlan.Altitude != "" && err != nil {
-					lg.Errorf("%s: bogus altitude %s: %v", p.Callsign, p.FlightPlan.Altitude, err)
+					if _, ok := altitudeSyntaxErrors[p.FlightPlan.Altitude]; !ok {
+						lg.Errorf("%s: bogus altitude %s: %v", p.Callsign, p.FlightPlan.Altitude, err)
+						altitudeSyntaxErrors[p.FlightPlan.Altitude] = nil
+					}
 				}
 
 				if p.FlightPlan.Rules == "I" && !strings.HasPrefix(p.FlightPlan.Altitude, "VFR/") {
